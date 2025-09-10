@@ -1,0 +1,350 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="x-apple-disable-message-reformatting">
+    <title>Daily Email Digest</title>
+    <!--[if mso]>
+    <noscript>
+        <xml>
+            <o:OfficeDocumentSettings>
+                <o:AllowPNG/>
+                <o:PixelsPerInch>96</o:PixelsPerInch>
+            </o:OfficeDocumentSettings>
+        </xml>
+    </noscript>
+    <![endif]-->
+    <style>
+        /* Email-safe CSS styles */
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #f8fafc;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+            font-size: 14px;
+            line-height: 1.5;
+            color: #1f2937;
+            -webkit-text-size-adjust: 100%;
+            -ms-text-size-adjust: 100%;
+        }
+        table {
+            border-collapse: collapse;
+            mso-table-lspace: 0pt;
+            mso-table-rspace: 0pt;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #ffffff;
+        }
+        .header {
+            background: linear-gradient(135deg, #1a365d 0%, #2563eb 100%);
+            color: white;
+            padding: 24px 20px;
+            text-align: center;
+        }
+        .content {
+            padding: 20px;
+        }
+        .ai-highlights {
+            background-color: #f0f7ff;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 24px;
+            border-left: 4px solid #2563eb;
+        }
+        .priority-section {
+            margin-bottom: 24px;
+        }
+        .priority-header {
+            background-color: #f8fafc;
+            padding: 12px 16px;
+            border-radius: 6px;
+            margin-bottom: 12px;
+            font-weight: 600;
+        }
+        .email-card {
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            background-color: #ffffff;
+            overflow: hidden;
+            word-wrap: break-word;
+            word-break: break-word;
+        }
+        .email-card-header {
+            padding: 16px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .email-card-content {
+            padding: 16px;
+        }
+        .sender-info {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .sender-name {
+            font-weight: 600;
+            color: #1f2937;
+            flex: 1;
+            min-width: 0;
+            word-break: break-word;
+        }
+        .vip-badge {
+            background-color: #059669;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+        .priority-badge {
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+        .email-subject {
+            font-weight: 600;
+            color: #1f2937;
+            margin-bottom: 8px;
+            font-size: 15px;
+            word-wrap: break-word;
+            word-break: break-word;
+            overflow-wrap: break-word;
+        }
+        .email-meta {
+            color: #6b7280;
+            font-size: 12px;
+            margin-bottom: 12px;
+            word-wrap: break-word;
+        }
+        .ai-summary {
+            background-color: #f8fafc;
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 12px;
+            border-left: 3px solid #2563eb;
+            word-wrap: break-word;
+            word-break: break-word;
+            overflow-wrap: break-word;
+        }
+        .ai-summary-label {
+            font-weight: 600;
+            color: #4b5563;
+            margin-bottom: 4px;
+            font-size: 12px;
+        }
+        .button-container {
+            margin-top: 16px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .btn {
+            display: inline-block;
+            padding: 10px 20px;
+            border-radius: 6px;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 14px;
+            border: none;
+            cursor: pointer;
+            white-space: nowrap;
+            text-align: center;
+            min-width: 80px;
+        }
+        .btn-send {
+            background-color: #059669;
+            color: white;
+        }
+        .btn-edit {
+            background-color: #2563eb;
+            color: white;
+        }
+        .btn-details {
+            background-color: #6b7280;
+            color: white;
+        }
+        .insights-list {
+            margin: 8px 0;
+            word-wrap: break-word;
+        }
+        .insight-item {
+            margin: 4px 0;
+            color: #4b5563;
+            font-size: 12px;
+            word-wrap: break-word;
+            word-break: break-word;
+        }
+        .footer {
+            background-color: #f8fafc;
+            padding: 20px;
+            text-align: center;
+            color: #6b7280;
+            font-size: 12px;
+        }
+        @media only screen and (max-width: 600px) {
+            .container { width: 100% !important; }
+            .content { padding: 16px !important; }
+            .button-container { 
+                flex-direction: column !important; 
+            }
+            .btn { 
+                width: 100% !important; 
+                margin-bottom: 8px !important; 
+                box-sizing: border-box !important;
+            }
+            .sender-info {
+                flex-direction: column !important;
+                align-items: flex-start !important;
+            }
+            .email-subject {
+                font-size: 14px !important;
+                line-height: 1.4 !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1 style="margin: 0; font-size: 20px;">📧 Daily Email Digest</h1>
+            <p style="margin: 8px 0 0 0; opacity: 0.9;">Wednesday, September 10, 2025</p>
+        </div>
+
+        <!-- Content -->
+        <div class="content">
+
+            <!-- Processing Summary -->
+            <div style="background-color: #f8fafc; padding: 16px; border-radius: 6px; margin-bottom: 24px; text-align: center;">
+                <strong>3 emails processed</strong> • 
+                <span style="color: #dc2626;">1 high</span> • 
+                <span style="color: #d97706;">1 medium</span> • 
+                <span style="color: #6b7280;">1 low priority</span>
+            </div>
+
+            <!-- High Priority Section -->
+            <div class="priority-section">
+                <div class="priority-header" style="color: #dc2626;">
+                    🔥 HIGH PRIORITY (1)
+                </div>
+
+                <div class="email-card">
+                    <div class="email-card-header">
+                        <div class="sender-info">
+                            <span class="sender-name">Sarah Johnson</span>
+                            <span class="priority-badge" style="background-color: #dc2626; color: white;">🔥</span>
+                        </div>
+                        <div class="email-subject">URGENT: Contract approval needed by Friday</div>
+                        <div class="email-meta">
+                            ⏰ just now • 📎 1 attachment
+                        </div>
+                    </div>
+                    <div class="email-card-content">
+
+                        <div class="ai-summary">
+                            <div class="ai-summary-label">🤖 AI Summary</div>
+                            <div>Sarah needs urgent approval for Q4 contract by EOD to unblock team deliverables.</div>
+                        </div>
+
+                        <div class="insights-list">
+                            <div style="font-weight: 600; color: #4b5563; margin-bottom: 4px;">📅 Calendar Intelligence:</div>
+                            <div class="insight-item">⏰ Deadline: Friday EOD</div>
+                        </div>
+
+                        <div style="background-color: #f8fafc; padding: 12px; border-radius: 6px; margin-top: 12px; border-left: 3px solid #059669;">
+                            <div style="font-weight: 600; color: #4b5563; margin-bottom: 4px;">✍️ Draft Reply Ready</div>
+                            <div style="font-style: italic; color: #4b5563;">"Hi Sarah,
+
+Got your urgent message. I'm on it and will get back to you by end of day today.
+
+Thanks"</div>
+                        </div>
+
+                        <div class="button-container">
+                            <a href="http://localhost:5000/send/test_user/email_001" class="btn btn-send">Send Reply</a>
+                            <a href="http://localhost:5000/edit/test_user/email_001" class="btn btn-edit">Edit Reply</a>
+                            <a href="http://localhost:5000/archive/test_user/email_001" class="btn btn-details">Archive</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Medium Priority Section -->
+            <div class="priority-section">
+                <div class="priority-header" style="color: #d97706;">
+                    ⚡ MEDIUM PRIORITY (1)
+                </div>
+
+                <div class="email-card">
+                    <div class="email-card-header">
+                        <div class="sender-info">
+                            <span class="sender-name">Team Lead</span>
+                            <span class="priority-badge" style="background-color: #d97706; color: white;">⚡</span>
+                        </div>
+                        <div class="email-subject">Weekly status update</div>
+                        <div class="email-meta">
+                            ⏰ just now
+                        </div>
+                    </div>
+                    <div class="email-card-content">
+
+                        <div class="ai-summary">
+                            <div class="ai-summary-label">🤖 AI Summary</div>
+                            <div>Weekly team status update with project progress and upcoming milestones.</div>
+                        </div>
+
+                        <div style="background-color: #f8fafc; padding: 12px; border-radius: 6px; margin-top: 12px; border-left: 3px solid #059669;">
+                            <div style="font-weight: 600; color: #4b5563; margin-bottom: 4px;">✍️ Draft Reply Ready</div>
+                            <div style="font-style: italic; color: #4b5563;">"Hi Team Lead,
+
+Thanks for the update. Everything looks good on track. Let me know if you need any..."</div>
+                        </div>
+
+                        <div class="button-container">
+                            <a href="http://localhost:5000/send/test_user/email_002" class="btn btn-send">Send Reply</a>
+                            <a href="http://localhost:5000/edit/test_user/email_002" class="btn btn-edit">Edit Reply</a>
+                            <a href="http://localhost:5000/archive/test_user/email_002" class="btn btn-details">Archive</a>
+                            <a href="http://localhost:5000/details/test_user/email_002" class="btn btn-details">+ More Info</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Low Priority Section -->
+            <div class="priority-section">
+                <div class="priority-header" style="color: #6b7280;">
+                    💤 LOW PRIORITY (1)
+                </div>
+
+                <div style="margin: 8px 0; padding: 12px; background-color: #f8fafc; border-radius: 6px; border-left: 3px solid #6b7280; word-wrap: break-word; overflow-wrap: break-word;">
+                    <div style="font-weight: 600; color: #1f2937; margin-bottom: 4px; word-break: break-word;">
+                        🔹 Weekly newsletter - Newsletter
+                    </div>
+                    <div style="color: #4b5563; font-size: 12px; word-wrap: break-word;">
+                        📧 Weekly company newsletter with updates and announcements.
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <p>Powered by AI Email Digest Assistant</p>
+            <p><a href="http://localhost:5000/settings/test_user" style="color: #2563eb;">Update Settings</a></p>
+        </div>
+    </div>
+</body>
+</html>

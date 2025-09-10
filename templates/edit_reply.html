@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Reply - AI Email Digest</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f8fafc;
+            color: #1f2937;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #1a365d 0%, #2563eb 100%);
+            color: white;
+            padding: 24px;
+            text-align: center;
+        }
+        .content {
+            padding: 24px;
+        }
+        .original-email {
+            background-color: #f0f7ff;
+            border-left: 4px solid #2563eb;
+            padding: 16px;
+            margin-bottom: 24px;
+            border-radius: 6px;
+        }
+        .ai-insights {
+            background-color: #f8fafc;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            padding: 16px;
+            margin-bottom: 24px;
+        }
+        .insights-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-top: 12px;
+        }
+        .insight-card {
+            background: white;
+            padding: 12px;
+            border-radius: 4px;
+            border-left: 3px solid #059669;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        .form-label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #374151;
+        }
+        .form-textarea {
+            width: 100%;
+            min-height: 200px;
+            padding: 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-family: inherit;
+            font-size: 14px;
+            line-height: 1.5;
+            resize: vertical;
+        }
+        .form-textarea:focus {
+            outline: none;
+            border-color: #2563eb;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+        .button-container {
+            display: flex;
+            gap: 12px;
+            margin-top: 24px;
+        }
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            text-align: center;
+        }
+        .btn-primary {
+            background-color: #059669;
+            color: white;
+        }
+        .btn-primary:hover {
+            background-color: #047857;
+        }
+        .btn-secondary {
+            background-color: #6b7280;
+            color: white;
+        }
+        .btn-secondary:hover {
+            background-color: #4b5563;
+        }
+        .reply-options {
+            background-color: #fffbf0;
+            border: 1px solid #f59e0b;
+            border-radius: 6px;
+            padding: 16px;
+            margin-bottom: 20px;
+        }
+        .reply-option {
+            margin-bottom: 12px;
+            padding: 8px;
+            background: white;
+            border-radius: 4px;
+            cursor: pointer;
+            border: 1px solid #e5e7eb;
+        }
+        .reply-option:hover {
+            border-color: #2563eb;
+        }
+        .reply-option.selected {
+            border-color: #2563eb;
+            background-color: #eff6ff;
+        }
+        .meta-info {
+            color: #6b7280;
+            font-size: 12px;
+            margin-bottom: 8px;
+        }
+        @media (max-width: 768px) {
+            .content { padding: 16px; }
+            .button-container { flex-direction: column; }
+            .insights-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Hidden data element to store reply options for JavaScript -->
+    <div id="reply-data" 
+         data-replies='{{ {
+             "primary": advanced_reply.primary_reply or "",
+             **{alt.tone: alt.reply or "" for alt in (advanced_reply.alternative_replies or [])}
+         }|tojson }}'
+         style="display: none;"></div>
+
+    <div class="container">
+        <div class="header">
+            <h1>✏️ Edit Reply</h1>
+            <p>Review and customize your AI-generated response</p>
+        </div>
+
+        <div class="content">
+            <!-- Original Email Context -->
+            <div class="original-email">
+                <h3>📧 Original Email</h3>
+                <div class="meta-info">
+                    <strong>From:</strong> {{ original_email.sender_name }} ({{ original_email.sender_email }})<br>
+                    <strong>Subject:</strong> {{ original_email.subject }}
+                </div>
+                <div style="margin-top: 12px;">
+                    <strong>AI Summary:</strong> {{ original_email.ai_summary }}
+                </div>
+                {% if original_email.body %}
+                <details style="margin-top: 12px;">
+                    <summary style="cursor: pointer; font-weight: 600;">View Full Email</summary>
+                    <div style="margin-top: 8px; padding: 8px; background: rgba(255,255,255,0.5); border-radius: 4px; white-space: pre-wrap;">{{ original_email.body[:500] }}{% if original_email.body|length > 500 %}...{% endif %}</div>
+                </details>
+                {% endif %}
+            </div>
+
+            <!-- AI Insights -->
+            {% if contextual_insights or tone_analysis or calendar_events.meetings or calendar_events.deadlines or priority_reasons %}
+            <div class="ai-insights">
+                <h3>🤖 AI Analysis</h3>
+                <div class="insights-grid">
+                    {% if tone_analysis %}
+                    <div class="insight-card">
+                        <strong>🎭 Tone Analysis</strong>
+                        <div class="meta-info">Detected: {{ tone_analysis.detected_tone|title }}</div>
+                        <div class="meta-info">Formality: {{ tone_analysis.formality_level|title }}</div>
+                        {% if tone_analysis.urgency_tone and tone_analysis.urgency_tone != 'normal' %}
+                        <div class="meta-info">Urgency: {{ tone_analysis.urgency_tone|title }}</div>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+
+                    {% if calendar_events.meetings or calendar_events.deadlines %}
+                    <div class="insight-card">
+                        <strong>📅 Calendar Events</strong>
+                        {% for meeting in calendar_events.meetings[:2] %}
+                        <div class="meta-info">🤝 {{ meeting.raw_text or meeting }}</div>
+                        {% endfor %}
+                        {% for deadline in calendar_events.deadlines[:2] %}
+                        <div class="meta-info">⏰ {{ deadline.deadline or deadline }}</div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+
+                    {% if thread_analysis and thread_analysis.is_continuation %}
+                    <div class="insight-card">
+                        <strong>🧵 Thread Context</strong>
+                        <div class="meta-info">Stage: {{ thread_analysis.conversation_stage|title }}</div>
+                        {% if thread_analysis.urgency_escalation %}
+                        <div class="meta-info">⚠️ Urgency escalated</div>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+
+                    {% if priority_reasons %}
+                    <div class="insight-card">
+                        <strong>🎯 Priority Factors</strong>
+                        {% for reason in priority_reasons[:3] %}
+                        <div class="meta-info">• {{ reason }}</div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+
+                {% if contextual_insights %}
+                <div style="margin-top: 16px;">
+                    <strong>💡 Key Insights:</strong>
+                    <ul style="margin: 8px 0; padding-left: 20px;">
+                        {% for insight in contextual_insights[:5] %}
+                        <li class="meta-info">{{ insight }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            <!-- Reply Options -->
+            {% if advanced_reply.alternative_replies %}
+            <div class="reply-options">
+                <h3>🎨 Reply Style Options</h3>
+                <p class="meta-info">Choose the tone that best fits your relationship with this sender:</p>
+                
+                <div class="reply-option selected" onclick="selectReply(this, 'primary')">
+                    <strong>AI Recommended ({{ tone_analysis.detected_tone|title if tone_analysis else 'Balanced' }})</strong>
+                    <div class="meta-info">{{ advanced_reply.primary_reply[:100] }}...</div>
+                </div>
+
+                {% for alt_reply in advanced_reply.alternative_replies[:2] %}
+                <div class="reply-option" onclick="selectReply(this, '{{ alt_reply.tone }}')">
+                    <strong>{{ alt_reply.tone|title }} Style</strong>
+                    <div class="meta-info">{{ alt_reply.reply[:100] }}...</div>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <!-- Edit Form -->
+            <form method="POST" action="/send_edited/{{ user_id }}/{{ email_id }}">
+                <div class="form-group">
+                    <label for="reply_content" class="form-label">✍️ Your Reply</label>
+                    <textarea 
+                        id="reply_content" 
+                        name="reply_content" 
+                        class="form-textarea" 
+                        placeholder="Edit your reply here..."
+                        required
+                    >{{ advanced_reply.primary_reply or '' }}</textarea>
+                </div>
+
+                <div class="button-container">
+                    <button type="submit" class="btn btn-primary">📤 Send Reply</button>
+                    <a href="mailto:" class="btn btn-secondary">❌ Cancel</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Get reply options from data attribute to avoid Jinja2 syntax issues in JS
+        let replyOptions = {};
+        try {
+            const dataElement = document.getElementById('reply-data');
+            if (dataElement && dataElement.getAttribute('data-replies')) {
+                replyOptions = JSON.parse(dataElement.getAttribute('data-replies'));
+            }
+        } catch (e) {
+            console.warn('Could not parse reply options:', e);
+            replyOptions = {
+                'primary': document.querySelector('textarea[name="reply_content"]')?.value || ''
+            };
+        }
+
+        function selectReply(element, replyType) {
+            // Remove selected class from all options
+            document.querySelectorAll('.reply-option').forEach(option => {
+                option.classList.remove('selected');
+            });
+            
+            // Add selected class to clicked option
+            element.classList.add('selected');
+            
+            // Update textarea with selected reply
+            const textarea = document.getElementById('reply_content');
+            textarea.value = replyOptions[replyType] || replyOptions['primary'];
+            
+            // Auto-resize textarea
+            textarea.style.height = 'auto';
+            textarea.style.height = textarea.scrollHeight + 'px';
+        }
+
+        // Auto-resize textarea on input
+        document.getElementById('reply_content').addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = this.scrollHeight + 'px';
+        });
+
+        // Initial resize
+        window.addEventListener('load', function() {
+            const textarea = document.getElementById('reply_content');
+            textarea.style.height = 'auto';
+            textarea.style.height = textarea.scrollHeight + 'px';
+        });
+    </script>
+</body>
+</html>

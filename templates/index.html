@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - AI Email Digest Assistant</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f8fafc;
+            color: #1f2937;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        .header {
+            background: linear-gradient(135deg, #1a365d 0%, #2563eb 100%);
+            color: white;
+            padding: 32px;
+            border-radius: 12px;
+            text-align: center;
+            margin-bottom: 32px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 2.5rem;
+            font-weight: 700;
+        }
+        .header p {
+            margin: 8px 0 0 0;
+            opacity: 0.9;
+            font-size: 1.1rem;
+        }
+        .user-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 24px;
+            margin-bottom: 32px;
+        }
+        .user-card {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            border: 1px solid #e5e7eb;
+            transition: transform 0.2s, box-shadow 0.2s;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            word-break: break-word;
+        }
+        .user-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+        .user-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+            overflow: hidden;
+        }
+        .user-avatar {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 18px;
+            margin-right: 16px;
+        }
+        .user-info h3 {
+            margin: 0;
+            font-size: 18px;
+            color: #1f2937;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            word-break: break-word;
+        }
+        .user-info {
+            flex: 1;
+            min-width: 0;
+            overflow: hidden;
+        }
+        .user-info h3 {
+            margin: 0;
+            font-size: 18px;
+            color: #1f2937;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            word-break: break-word;
+        }
+        .user-info p {
+            margin: 4px 0 0 0;
+            color: #6b7280;
+            font-size: 14px;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            word-break: break-word;
+        }
+        .user-stats {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+        .stat-item {
+            text-align: center;
+            padding: 12px;
+            background-color: #f9fafb;
+            border-radius: 8px;
+            word-wrap: break-word;
+            overflow: hidden;
+        }
+        .stat-number {
+            font-size: 24px;
+            font-weight: bold;
+            color: #2563eb;
+            margin-bottom: 4px;
+            word-wrap: break-word;
+        }
+        .stat-label {
+            font-size: 12px;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            word-wrap: break-word;
+        }
+        .user-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .btn {
+            padding: 10px 16px;
+            border: none;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            text-align: center;
+            transition: background-color 0.2s;
+            white-space: nowrap;
+            min-width: 80px;
+            box-sizing: border-box;
+        }
+        .btn-primary {
+            background-color: #2563eb;
+            color: white;
+        }
+        .btn-primary:hover {
+            background-color: #1d4ed8;
+        }
+        .btn-success {
+            background-color: #059669;
+            color: white;
+        }
+        .btn-success:hover {
+            background-color: #047857;
+        }
+        .btn-secondary {
+            background-color: #6b7280;
+            color: white;
+        }
+        .btn-secondary:hover {
+            background-color: #4b5563;
+        }
+        .btn-warning {
+            background-color: #d97706;
+            color: white;
+        }
+        .btn-warning:hover {
+            background-color: #b45309;
+        }
+        .add-user-card {
+            border: 2px dashed #d1d5db;
+            background-color: #f9fafb;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            color: #6b7280;
+            transition: all 0.2s;
+        }
+        .add-user-card:hover {
+            border-color: #2563eb;
+            background-color: #eff6ff;
+            color: #2563eb;
+        }
+        .add-user-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+        .system-status {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 32px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+        }
+        .status-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            background-color: #f9fafb;
+            border-radius: 8px;
+        }
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+        .status-good { background-color: #10b981; }
+        .status-warning { background-color: #f59e0b; }
+        .status-error { background-color: #ef4444; }
+        .vacation-badge {
+            background-color: #fef3c7;
+            color: #92400e;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .global-actions {
+            text-align: center;
+            margin-top: 32px;
+        }
+        @media (max-width: 768px) {
+            .user-grid {
+                grid-template-columns: 1fr;
+            }
+            .user-actions {
+                justify-content: center;
+            }
+            .status-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🤖 AI Email Digest Assistant</h1>
+            <p>Intelligent email management powered by advanced AI</p>
+        </div>
+
+        <!-- System Status -->
+        <div class="system-status">
+            <h2 style="margin-top: 0; margin-bottom: 20px; color: #374151;">🔧 System Status</h2>
+            <div class="status-grid">
+                <div class="status-item">
+                    <span>AI Processing</span>
+                    <div class="status-indicator {{ 'status-good' if system_status.ai_processing else 'status-error' }}"></div>
+                </div>
+                <div class="status-item">
+                    <span>Gmail API</span>
+                    <div class="status-indicator {{ 'status-good' if system_status.gmail_api else 'status-error' }}"></div>
+                </div>
+                <div class="status-item">
+                    <span>Email Sending</span>
+                    <div class="status-indicator {{ 'status-good' if system_status.email_sending else 'status-error' }}"></div>
+                </div>
+                <div class="status-item">
+                    <span>Storage</span>
+                    <div class="status-indicator {{ 'status-good' if system_status.storage else 'status-warning' }}"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Users Grid -->
+        <div class="user-grid">
+            {% for user in users %}
+            <div class="user-card">
+                <div class="user-header">
+                    <div class="user-avatar">
+                        {{ user.email[0].upper() }}
+                    </div>
+                    <div class="user-info">
+                        <h3>{{ user.email }}</h3>
+                        <p>
+                            User ID: {{ user.id }}
+                            {% if user.vacation_mode %}
+                            <span class="vacation-badge">🏖️ Vacation</span>
+                            {% endif %}
+                        </p>
+                    </div>
+                </div>
+
+                <div class="user-stats">
+                    <div class="stat-item">
+                        <div class="stat-number">{{ user.digest_time }}</div>
+                        <div class="stat-label">Digest Hour</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-number">{{ user.timezone[:3] if user.timezone else 'UTC' }}</div>
+                        <div class="stat-label">Timezone</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-number">{{ 'ON' if user.get('show_insights_by_default', False) else 'OFF' }}</div>
+                        <div class="stat-label">Auto Insights</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-number">{{ (user.get('weekend_digests', 'full'))[:4] }}</div>
+                        <div class="stat-label">Weekends</div>
+                    </div>
+                </div>
+
+                <div class="user-actions">
+                    <a href="/preview_digest/{{ user.id }}" class="btn btn-primary">📧 Preview</a>
+                    <a href="/generate_digest/{{ user.id }}" class="btn btn-success">🔄 Generate</a>
+                    <a href="/user_settings/{{ user.id }}" class="btn btn-secondary">⚙️ Settings</a>
+                    <a href="/send_digest/{{ user.id }}" class="btn btn-warning" 
+                       onclick="return confirm('Send digest to {{ user.email }}?')">📤 Send</a>
+                </div>
+            </div>
+            {% endfor %}
+
+            <!-- OAuth Login Card -->
+            <div class="user-card add-user-card" onclick="window.location.href='/oauth_login'">
+                <div class="add-user-icon">🔐</div>
+                <h3>OAuth Login</h3>
+                <p>Authenticate with Google to add your email account</p>
+                <div style="font-size: 12px; color: #6b7280; margin-top: 8px;">
+                    Users must be added to your Google Cloud project
+                </div>
+            </div>
+        </div>
+
+        <!-- Global Actions -->
+        <div class="global-actions">
+            <a href="/admin" class="btn btn-primary">👨‍💼 Admin Dashboard</a>
+            <a href="/oauth_login" class="btn btn-success">🔐 Add User via OAuth</a>
+            <a href="/send_all_digests" class="btn btn-success" 
+               onclick="return confirm('Send digests to all active users?')">📧 Send All Digests</a>
+            <a href="/system_check" class="btn btn-secondary">🔍 System Check</a>
+            <a href="/bulk_actions" class="btn btn-secondary">📋 Bulk Actions</a>
+        </div>
+    </div>
+
+    <script>
+        // Auto-refresh functionality
+        function autoRefresh() {
+            if (new URLSearchParams(window.location.search).get('auto_refresh') === 'true') {
+                setTimeout(function() {
+                    window.location.reload();
+                }, 60000); // Refresh every minute
+            }
+        }
+
+        // Add keyboard shortcuts
+        document.addEventListener('keydown', function(e) {
+            if (e.ctrlKey || e.metaKey) {
+                switch(e.key) {
+                    case 'a':
+                        e.preventDefault();
+                        window.location.href = '/admin';
+                        break;
+                    case 'n':
+                        e.preventDefault();
+                        window.location.href = '/oauth_login';
+                        break;
+                    case 'r':
+                        e.preventDefault();
+                        window.location.reload();
+                        break;
+                }
+            }
+        });
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            autoRefresh();
+            
+            // Add tooltips or other enhancements here
+            console.log('Dashboard loaded with {{ users|length }} users');
+        });
+    </script>
+</body>
+</html>

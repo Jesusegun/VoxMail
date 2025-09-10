@@ -1,0 +1,29 @@
+# =============================================================================
+# EMAIL DIGEST ASSISTANT - GITIGNORE
+# =============================================================================
+
+# Python Environment
+# ------------------
+venv/                    
+__pycache__/             
+*.pyc                    
+*.pyo                    
+
+# Sensitive Credentials
+# --------------------
+credentials/             
+*.json                   
+token.pickle       
+.env                 
+
+# Development Files
+# -----------------
+.vscode/                
+.idea/                   
+temp/                    
+
+# OS Files
+# --------
+.DS_Store              
+Thumbs.db              
+*.tmp                   
