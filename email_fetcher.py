@@ -20,6 +20,14 @@ import re
 from email.mime.text import MIMEText
 from typing import List, Dict, Optional, Any
 
+# Import BeautifulSoup for better HTML parsing
+try:
+    from bs4 import BeautifulSoup
+    BEAUTIFULSOUP_AVAILABLE = True
+except ImportError:
+    BEAUTIFULSOUP_AVAILABLE = False
+    print("⚠️ BeautifulSoup not available - using basic HTML stripping")
+
 class EmailFetcher:
     """
     Gmail Email Fetching and Processing System
@@ -99,8 +107,9 @@ class EmailFetcher:
             if sender_filter:
                 query_parts.append(f'from:{sender_filter}')
             
-            # Exclude spam and trash automatically
-            query_parts.extend(['-in:spam', '-in:trash'])
+            # Exclude spam, trash, and sent emails automatically
+            # Only get emails in inbox (received emails, not sent)
+            query_parts.extend(['-in:spam', '-in:trash', '-in:sent', 'in:inbox'])
             
             # Join all query parts with spaces
             search_query = ' '.join(query_parts)
@@ -158,15 +167,40 @@ class EmailFetcher:
                     continue
             
             # =============================================================================
-            # STEP 4: RETURN PROCESSING SUMMARY
+            # STEP 4: REMOVE DUPLICATES
+            # =============================================================================
+            
+            # Remove duplicate emails based on message-id or subject+sender combination
+            unique_emails = []
+            seen_identifiers = set()
+            
+            for email in processed_emails:
+                # Create unique identifier using subject + sender + approximate time
+                identifier = (
+                    email.get('subject', '').strip().lower(),
+                    email.get('sender_email', '').strip().lower(),
+                    email.get('body', '')[:100].strip().lower()  # First 100 chars of body
+                )
+                
+                if identifier not in seen_identifiers:
+                    seen_identifiers.add(identifier)
+                    unique_emails.append(email)
+                else:
+                    print(f"🔄 Duplicate email removed: {email.get('subject', 'No Subject')}")
+            
+            duplicates_removed = len(processed_emails) - len(unique_emails)
+            
+            # =============================================================================
+            # STEP 5: RETURN PROCESSING SUMMARY
             # =============================================================================
             
             print(f"\n📊 Email fetching completed:")
             print(f"   ✅ Successfully processed: {successful_fetches}")
             print(f"   ❌ Failed to process: {failed_fetches}")
-            print(f"   📧 Total emails ready for AI: {len(processed_emails)}")
+            print(f"   🔄 Duplicates removed: {duplicates_removed}")
+            print(f"   📧 Total unique emails ready for AI: {len(unique_emails)}")
             
-            return processed_emails
+            return unique_emails
             
         except Exception as e:
             print(f"❌ Error in get_recent_emails: {e}")
@@ -714,7 +748,7 @@ class EmailFetcher:
     
     def strip_html_tags(self, html_content: str) -> str:
         """
-        Strip HTML tags from content
+        Strip HTML tags from content using BeautifulSoup for robust parsing
         
         Args:
             html_content (str): HTML content
@@ -723,11 +757,34 @@ class EmailFetcher:
             str: Plain text content
         """
         
-        # Simple HTML tag removal using regex
-        # For production, consider using BeautifulSoup for robust HTML parsing
+        if BEAUTIFULSOUP_AVAILABLE:
+            try:
+                # Use BeautifulSoup for robust HTML parsing
+                soup = BeautifulSoup(html_content, 'html.parser')
+                
+                # Remove script and style elements completely
+                for script in soup(['script', 'style', 'head', 'meta']):
+                    script.decompose()
+                
+                # Get text and clean up whitespace
+                text = soup.get_text(separator=' ', strip=True)
+                
+                # Clean up multiple spaces and newlines
+                text = re.sub(r'\s+', ' ', text)
+                text = re.sub(r'\n\s*\n', '\n\n', text)
+                
+                return text.strip()
+                
+            except Exception as e:
+                print(f"⚠️ BeautifulSoup parsing failed: {e}, falling back to regex")
+        
+        # Fallback: Simple HTML tag removal using regex
+        # Remove style and script blocks first
+        clean_text = re.sub(r'<style[^>]*>.*?</style>', '', html_content, flags=re.DOTALL | re.IGNORECASE)
+        clean_text = re.sub(r'<script[^>]*>.*?</script>', '', clean_text, flags=re.DOTALL | re.IGNORECASE)
         
         # Remove HTML tags
-        clean_text = re.sub(r'<[^>]+>', '', html_content)
+        clean_text = re.sub(r'<[^>]+>', '', clean_text)
         
         # Convert HTML entities
         html_entities = {
@@ -742,7 +799,10 @@ class EmailFetcher:
         for entity, replacement in html_entities.items():
             clean_text = clean_text.replace(entity, replacement)
         
-        return clean_text
+        # Clean up whitespace
+        clean_text = re.sub(r'\s+', ' ', clean_text)
+        
+        return clean_text.strip()
 
 # =============================================================================
 # TESTING AND DEMONSTRATION CODE

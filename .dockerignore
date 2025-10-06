@@ -1,0 +1,68 @@
+# =============================================================================
+# DOCKERIGNORE - Files to Exclude from Deployment
+# =============================================================================
+# Like .gitignore but for Docker - keeps deployment fast and secure
+
+# Python cache files (generated automatically, don't need in production)
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+
+# Virtual environment (installed fresh in container)
+venv/
+env/
+ENV/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Git files (not needed in production)
+.git/
+.gitignore
+.gitattributes
+
+# Environment files (use Fly.io secrets instead)
+.env
+.env.local
+.env.*.local
+
+# Test files (don't need in production)
+# Note: auth_test.py is needed for Gmail authentication, so it's NOT excluded
+test_scheduler.py
+test_ai_integration.py
+tests/
+.pytest_cache/
+
+# Documentation (useful locally but not in production)
+docs/
+*.md
+LICENSE
+
+# Log files (generated fresh in production)
+*.log
+logs/
+
+# Temporary files
+*.tmp
+temp/
+tmp/
+
+# Database files (if using SQLite locally)
+*.db
+*.sqlite
+*.sqlite3
+
+# OS files
+Thumbs.db

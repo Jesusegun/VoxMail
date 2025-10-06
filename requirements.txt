@@ -9,15 +9,26 @@ google-auth-oauthlib==1.1.0         # OAuth 2.0 authentication flow
 google-auth-httplib2==0.1.1         # HTTP transport for Google APIs
 google-api-python-client==2.108.0   # Gmail API client library
 
-# Web Framework 
-# flask==2.3.3
+# Web Framework & Deployment
+# ----------------------
+flask==2.3.3                        # Web application framework
+jinja2==3.1.2                       # Template engine (required by Flask)
+gunicorn==21.2.0                    # WSGI HTTP server for production
+werkzeug==3.0.1                     # WSGI utilities (Flask dependency)
 
-# Templating 
-# jinja2==3.1.2
+# Scheduling & Automation
+# ----------------------
+schedule==1.2.0                     # Job scheduling for daily digests
+pytz==2023.3                        # Timezone support for user preferences
+python-dateutil==2.8.2              # Date/time utilities
 
-# Deployment 
-# gunicorn==21.2.0
+# HTML Processing
+# ----------------------
+beautifulsoup4==4.12.2              # HTML parsing and extraction
+lxml==4.9.3                         # XML/HTML parser (faster than html.parser)
 
+# AI & NLP Dependencies
+# ----------------------
 transformers==4.35.2            # Hugging Face transformers for AI models
 torch==2.2.2                    # PyTorch deep learning framework
 torchvision==0.17.2            # PyTorch computer vision
@@ -30,3 +41,15 @@ sentence-transformers==2.2.2    # Semantic similarity models
 numpy==1.26.4                  # Numerical computing
 pandas==2.1.4                  # Data manipulation
 matplotlib==3.8.0              # Plotting and visualization
+
+# Additional Production Dependencies
+# ----------------------
+python-dotenv==1.0.0           # Environment variable management (.env files)
+requests==2.31.0               # HTTP library (if needed for API calls)
+urllib3==2.0.7                 # HTTP client (requests dependency)
+certifi==2023.11.17            # SSL certificates validation
+
+# Optional: For better performance
+# ----------------------
+# accelerate==0.25.0           # Faster model loading (uncomment if using GPU)
+# optimum==1.16.0              # Model optimization (uncomment if needed)

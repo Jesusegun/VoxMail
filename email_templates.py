@@ -151,7 +151,7 @@ def create_digest_email(digest_data: Dict[str, Any], base_url: str) -> str:
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="x-apple-disable-message-reformatting">
-    <title>Daily Email Digest</title>
+    <title>VoxMail Daily Digest</title>
     <!--[if mso]>
     <noscript>
         <xml>
@@ -298,28 +298,29 @@ def create_digest_email(digest_data: Dict[str, Any], base_url: str) -> str:
         }}
         .btn {{
             display: inline-block;
-            padding: 10px 20px;
+            padding: 8px 16px;
             border-radius: 6px;
             text-decoration: none;
             font-weight: 600;
-            font-size: {TYPOGRAPHY['button_size']};
+            font-size: 13px;
             border: none;
             cursor: pointer;
             white-space: nowrap;
             text-align: center;
-            min-width: 80px;
+            min-width: 70px;
+            color: #ffffff !important;
         }}
         .btn-send {{
             background-color: {COLORS['success_green']};
-            color: white;
+            color: #ffffff !important;
         }}
         .btn-edit {{
             background-color: {COLORS['edit_blue']};
-            color: white;
+            color: #ffffff !important;
         }}
         .btn-details {{
             background-color: {COLORS['text_light']};
-            color: white;
+            color: #ffffff !important;
         }}
         .insights-list {{
             margin: 8px 0;
@@ -343,10 +344,14 @@ def create_digest_email(digest_data: Dict[str, Any], base_url: str) -> str:
             .container {{ width: 100% !important; }}
             .content {{ padding: 16px !important; }}
             .button-container {{ 
-                flex-direction: column !important; 
+                flex-direction: row !important;
+                justify-content: flex-start !important;
             }}
             .btn {{ 
-                width: 100% !important; 
+                flex: 0 1 auto !important;
+                padding: 8px 12px !important;
+                font-size: 12px !important;
+                min-width: 60px !important;
                 margin-bottom: 8px !important; 
                 box-sizing: border-box !important;
             }}
@@ -365,7 +370,7 @@ def create_digest_email(digest_data: Dict[str, Any], base_url: str) -> str:
     <div class="container">
         <!-- Header -->
         <div class="header">
-            <h1 style="margin: 0; font-size: {TYPOGRAPHY['heading_size']};">📧 Daily Email Digest</h1>
+            <h1 style="margin: 0; font-size: {TYPOGRAPHY['heading_size']};">📧 VoxMail Daily Digest</h1>
             <p style="margin: 8px 0 0 0; opacity: 0.9;">{date_header}</p>
         </div>
 
@@ -441,7 +446,7 @@ def create_digest_email(digest_data: Dict[str, Any], base_url: str) -> str:
 
         <!-- Footer -->
         <div class="footer">
-            <p>Powered by AI Email Digest Assistant</p>
+            <p>Powered by VoxMail - AI Email Assistant</p>
             <p><a href="{base_url}/settings/{user_id}" style="color: {COLORS['edit_blue']};">Update Settings</a></p>
         </div>
     </div>
@@ -593,20 +598,16 @@ def generate_email_card_html(email: Dict[str, Any], user_id: str, base_url: str,
         # Send reply button (if reply available)
         if primary_reply:
             send_url = f"{base_url}/send/{user_id}/{email_id}"
-            card_html += f'                            <a href="{send_url}" class="btn btn-send">Send Reply</a>\n'
+            card_html += f'                            <a href="{send_url}" class="btn btn-send">✓ Send</a>\n'
         
         # Edit reply button
         edit_url = f"{base_url}/edit/{user_id}/{email_id}"
-        card_html += f'                            <a href="{edit_url}" class="btn btn-edit">Edit Reply</a>\n'
-        
-        # Archive button
-        archive_url = f"{base_url}/archive/{user_id}/{email_id}"
-        card_html += f'                            <a href="{archive_url}" class="btn btn-details">Archive</a>\n'
+        card_html += f'                            <a href="{edit_url}" class="btn btn-edit">✏️ Edit</a>\n'
         
         # More details button (for collapsed cards)
         if not expanded:
             details_url = f"{base_url}/details/{user_id}/{email_id}"
-            card_html += f'                            <a href="{details_url}" class="btn btn-details">+ More Info</a>\n'
+            card_html += f'                            <a href="{details_url}" class="btn btn-details">+ More</a>\n'
         
         card_html += "                        </div>\n"
     
@@ -620,7 +621,7 @@ def generate_low_priority_item_html(email: Dict[str, Any]) -> str:
     """
     Generate minimal HTML for low priority email items
     
-    Creates a clean, scannable format with sender + summary only
+    Creates a clean, scannable format with sender + truncated summary
     """
     sender_name = email.get('sender_name', 'Unknown Sender')
     subject = email.get('subject', 'No Subject')

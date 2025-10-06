@@ -86,7 +86,7 @@ def authenticate_gmail():
                 print(f"❌ Credentials file not found: {CREDENTIALS_FILE}")
                 print("📋 Please follow these steps:")
                 print("   1. Go to https://console.cloud.google.com")
-                print("   2. Create/select project 'Email Digest Assistant'")
+                print("   2. Create/select project 'VoxMail'")
                 print("   3. Enable Gmail API")
                 print("   4. Create OAuth 2.0 credentials")
                 print("   5. Download as 'credentials.json'")

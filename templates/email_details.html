@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Email Details - {{ subject }}</title>
+    <style>
+        /* Dark Mode Theme */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #0f172a;
+            color: #e2e8f0;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: #1e293b;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+            overflow: hidden;
+            border: 1px solid #334155;
+        }
+        .header {
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            color: white;
+            padding: 24px;
+        }
+        .header h1 {
+            margin: 0 0 8px 0;
+            font-size: 24px;
+        }
+        .header-meta {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        .content {
+            padding: 24px;
+        }
+        .section {
+            margin-bottom: 24px;
+            padding: 16px;
+            background-color: #334155;
+            border-radius: 6px;
+            border: 1px solid #475569;
+        }
+        .section-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: #f1f5f9;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .priority-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 12px;
+            text-transform: uppercase;
+        }
+        .priority-high {
+            background-color: #dc2626;
+            color: white;
+        }
+        .priority-medium {
+            background-color: #f59e0b;
+            color: white;
+        }
+        .priority-low {
+            background-color: #10b981;
+            color: white;
+        }
+        .insight-item {
+            padding: 8px 0;
+            border-bottom: 1px solid #475569;
+        }
+        .insight-item:last-child {
+            border-bottom: none;
+        }
+        .insight-label {
+            font-weight: 600;
+            color: #94a3b8;
+            font-size: 12px;
+            text-transform: uppercase;
+            margin-bottom: 4px;
+        }
+        .insight-value {
+            color: #e2e8f0;
+            line-height: 1.5;
+        }
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            margin-right: 8px;
+            margin-top: 8px;
+        }
+        .btn-primary {
+            background-color: #059669;
+            color: white;
+        }
+        .btn-primary:hover {
+            background-color: #047857;
+        }
+        .btn-secondary {
+            background-color: #6366f1;
+            color: white;
+        }
+        .btn-secondary:hover {
+            background-color: #4f46e5;
+        }
+        .email-body {
+            background-color: #1e293b;
+            padding: 16px;
+            border-radius: 6px;
+            border: 1px solid #475569;
+            max-height: 300px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            color: #cbd5e1;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        .reply-box {
+            background-color: #1e3a5f;
+            padding: 16px;
+            border-radius: 6px;
+            border-left: 4px solid #818cf8;
+            margin-top: 12px;
+        }
+        .reply-text {
+            color: #cbd5e1;
+            line-height: 1.6;
+            font-style: italic;
+        }
+        .action-buttons {
+            margin-top: 24px;
+            padding-top: 16px;
+            border-top: 1px solid #475569;
+        }
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+        @media (max-width: 768px) {
+            .grid-2 {
+                grid-template-columns: 1fr;
+            }
+            .content {
+                padding: 16px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📧 {{ subject }}</h1>
+            <div class="header-meta">
+                <strong>From:</strong> {{ sender_name }} &lt;{{ sender_email }}&gt;<br>
+                <strong>Date:</strong> {{ received_date }}<br>
+                <strong>Priority:</strong> 
+                <span class="priority-badge priority-{{ priority_level.lower() }}">
+                    {{ priority_level }} ({{ priority_score }})
+                </span>
+            </div>
+        </div>
+
+        <div class="content">
+            <!-- AI Summary -->
+            <div class="section">
+                <div class="section-title">🤖 AI Summary</div>
+                <div class="insight-value">{{ ai_summary }}</div>
+            </div>
+
+            <!-- Priority Analysis -->
+            {% if priority_reasons %}
+            <div class="section">
+                <div class="section-title">⚡ Priority Analysis</div>
+                {% for reason in priority_reasons %}
+                <div class="insight-item">
+                    <div class="insight-value">• {{ reason }}</div>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <!-- Tone Analysis -->
+            {% if tone_analysis and tone_analysis.get('primary_tone') %}
+            <div class="section">
+                <div class="section-title">🎭 Tone Analysis</div>
+                <div class="grid-2">
+                    <div class="insight-item">
+                        <div class="insight-label">Primary Tone</div>
+                        <div class="insight-value">{{ tone_analysis.primary_tone }}</div>
+                    </div>
+                    <div class="insight-item">
+                        <div class="insight-label">Formality</div>
+                        <div class="insight-value">{{ tone_analysis.formality_level }}</div>
+                    </div>
+                    <div class="insight-item">
+                        <div class="insight-label">Urgency</div>
+                        <div class="insight-value">{{ tone_analysis.urgency_level }}</div>
+                    </div>
+                    <div class="insight-item">
+                        <div class="insight-label">Sentiment</div>
+                        <div class="insight-value">{{ tone_analysis.sentiment }}</div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Calendar Events -->
+            {% if calendar_events and (calendar_events.get('meetings') or calendar_events.get('deadlines')) %}
+            <div class="section">
+                <div class="section-title">📅 Calendar Intelligence</div>
+                
+                {% if calendar_events.get('meetings') %}
+                <div style="margin-bottom: 12px;">
+                    <div class="insight-label">Meetings Detected</div>
+                    {% for meeting in calendar_events.meetings %}
+                    <div class="insight-item">
+                        <div class="insight-value">
+                            🤝 {{ meeting.get('raw_text', meeting) }}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                {% if calendar_events.get('deadlines') %}
+                <div>
+                    <div class="insight-label">Deadlines Detected</div>
+                    {% for deadline in calendar_events.deadlines %}
+                    <div class="insight-item">
+                        <div class="insight-value">
+                            ⏰ {{ deadline.get('deadline', deadline) }}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            <!-- Thread Analysis -->
+            {% if thread_analysis and thread_analysis.get('is_continuation') %}
+            <div class="section">
+                <div class="section-title">🧵 Thread Analysis</div>
+                <div class="insight-item">
+                    <div class="insight-label">Conversation Stage</div>
+                    <div class="insight-value">{{ thread_analysis.conversation_stage }}</div>
+                </div>
+                <div class="insight-item">
+                    <div class="insight-label">Thread Position</div>
+                    <div class="insight-value">{{ thread_analysis.thread_position }}</div>
+                </div>
+                {% if thread_analysis.urgency_escalation %}
+                <div class="insight-item">
+                    <div class="insight-value">⚠️ Urgency has escalated in this thread</div>
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            <!-- Contextual Insights -->
+            {% if contextual_insights %}
+            <div class="section">
+                <div class="section-title">💡 Contextual Insights</div>
+                {% for insight in contextual_insights %}
+                <div class="insight-item">
+                    <div class="insight-value">• {{ insight }}</div>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <!-- Entities -->
+            {% if entities and (entities.get('people') or entities.get('organizations') or entities.get('locations')) %}
+            <div class="section">
+                <div class="section-title">🏷️ Detected Entities</div>
+                <div class="grid-2">
+                    {% if entities.get('people') %}
+                    <div class="insight-item">
+                        <div class="insight-label">People</div>
+                        <div class="insight-value">{{ entities.people|join(', ') }}</div>
+                    </div>
+                    {% endif %}
+                    {% if entities.get('organizations') %}
+                    <div class="insight-item">
+                        <div class="insight-label">Organizations</div>
+                        <div class="insight-value">{{ entities.organizations|join(', ') }}</div>
+                    </div>
+                    {% endif %}
+                    {% if entities.get('locations') %}
+                    <div class="insight-item">
+                        <div class="insight-label">Locations</div>
+                        <div class="insight-value">{{ entities.locations|join(', ') }}</div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Draft Reply -->
+            {% if advanced_reply and advanced_reply.get('primary_reply') %}
+            <div class="section">
+                <div class="section-title">✍️ AI-Generated Reply</div>
+                <div class="reply-box">
+                    <div class="reply-text">{{ advanced_reply.primary_reply }}</div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Original Email Body -->
+            <div class="section">
+                <div class="section-title">📄 Original Email</div>
+                <div class="email-body">{{ body|striptags|truncate(2000) }}</div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="action-buttons">
+                {% if advanced_reply and advanced_reply.get('primary_reply') %}
+                <a href="/send/{{ user_id }}/{{ email_id }}" class="btn btn-primary">✓ Send Reply</a>
+                <a href="/edit/{{ user_id }}/{{ email_id }}" class="btn btn-secondary">✏️ Edit Reply</a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</body>
+</html>

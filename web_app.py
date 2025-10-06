@@ -1,7 +1,7 @@
 # =============================================================================
 # WEB APPLICATION - web_app.py
 # =============================================================================
-# Day 3: Web Interface for AI Email Digest Assistant
+# Day 3: Web Interface for VoxMail - AI Email Assistant
 # 
 # This Flask application handles:
 # 1. Button clicks from digest emails (send/edit/archive)
@@ -21,21 +21,34 @@ import os
 import json
 import uuid
 import base64
+import time
 from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional
 from flask import Flask, render_template, request, redirect, url_for, jsonify, abort
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
-# Import your existing AI system components
-try:
-    from complete_advanced_ai_processor import CompleteEmailAgent
-    from auth_test import authenticate_gmail
-    from email_fetcher import EmailFetcher
-    print("✅ Successfully imported AI system components")
-except ImportError as e:
-    print(f"❌ Error importing AI components: {e}")
-    print("🔧 Make sure all AI files are in the correct location")
+# Lazy import globals - AI components loaded only when needed
+CompleteEmailAgent = None
+authenticate_gmail = None
+EmailFetcher = None
+
+def _lazy_load_ai_components():
+    """Load AI components only when actually needed to save memory at startup"""
+    global CompleteEmailAgent, authenticate_gmail, EmailFetcher
+    if CompleteEmailAgent is None:
+        print("📦 Loading AI components...")
+        try:
+            from complete_advanced_ai_processor import CompleteEmailAgent as _Agent
+            from auth_test import authenticate_gmail as _auth
+            from email_fetcher import EmailFetcher as _Fetcher
+            CompleteEmailAgent = _Agent
+            authenticate_gmail = _auth
+            EmailFetcher = _Fetcher
+            print("✅ AI components loaded successfully")
+        except ImportError as e:
+            print(f"❌ Error importing AI components: {e}")
+            raise
 
 # =============================================================================
 # FLASK APP CONFIGURATION
@@ -268,6 +281,45 @@ class DigestDataManager:
                 'timestamp': datetime.now().isoformat()
             })
             self._save_data()
+    
+    def record_digest_sent(self, user_id: str, email_count: int):
+        """Record when a digest is sent"""
+        if user_id not in self.digest_data:
+            self.digest_data[user_id] = {}
+        
+        if 'digest_history' not in self.digest_data[user_id]:
+            self.digest_data[user_id]['digest_history'] = []
+        
+        self.digest_data[user_id]['digest_history'].append({
+            'sent_at': datetime.now().isoformat(),
+            'email_count': email_count
+        })
+        
+        self._save_data()
+    
+    def get_stats_today(self) -> Dict[str, int]:
+        """Get statistics for today"""
+        today = datetime.now().date()
+        
+        digests_sent = 0
+        emails_processed = 0
+        
+        for user_id, user_data in self.digest_data.items():
+            # Count digests sent today
+            if 'digest_history' in user_data:
+                for digest in user_data['digest_history']:
+                    try:
+                        sent_date = datetime.fromisoformat(digest['sent_at']).date()
+                        if sent_date == today:
+                            digests_sent += 1
+                            emails_processed += digest.get('email_count', 0)
+                    except:
+                        pass
+        
+        return {
+            'digests_sent_today': digests_sent,
+            'total_emails_processed': emails_processed
+        }
 
 # Initialize digest data manager  
 digest_manager = DigestDataManager()
@@ -283,6 +335,9 @@ def generate_user_digest(user_id: str) -> Dict[str, Any]:
     This integrates with your existing CompleteEmailAgent and preserves
     all the sophisticated AI features you've built.
     """
+    
+    # Load AI components only when actually generating a digest
+    _lazy_load_ai_components()
     
     print(f"🚀 Generating daily digest for user {user_id}")
     
@@ -397,6 +452,57 @@ def send_reply(user_id: str, email_id: str):
         return render_template('action_error.html', 
                              error=str(e),
                              action='send reply',
+                             user_id=user_id), 500
+
+@app.route('/details/<user_id>/<email_id>')
+def email_details(user_id: str, email_id: str):
+    """
+    Handle 'More' button clicks - shows expanded AI insights
+    
+    Displays full AI analysis, calendar events, thread status, tone analysis, etc.
+    """
+    
+    print(f"🔍 Details request: User {user_id}, Email {email_id}")
+    
+    try:
+        # Get the stored email data
+        email_data = digest_manager.get_email_data(user_id, email_id)
+        if not email_data:
+            abort(404, "Email data not found")
+        
+        # Get user preferences
+        user = user_manager.get_user(user_id)
+        if not user:
+            abort(404, "User not found")
+        
+        # Prepare detailed view data
+        details_data = {
+            'user_id': user_id,
+            'email_id': email_id,
+            'sender_name': email_data.get('sender_name', 'Unknown'),
+            'sender_email': email_data.get('sender_email', ''),
+            'subject': email_data.get('subject', 'No Subject'),
+            'received_date': email_data.get('received_date', 'Unknown'),
+            'body': email_data.get('body', ''),
+            'ai_summary': email_data.get('ai_summary', ''),
+            'priority_level': email_data.get('priority_level', 'Medium'),
+            'priority_score': email_data.get('priority_score', 0),
+            'priority_reasons': email_data.get('priority_reasons', []),
+            'tone_analysis': email_data.get('tone_analysis', {}),
+            'calendar_events': email_data.get('calendar_events', {}),
+            'thread_analysis': email_data.get('thread_analysis', {}),
+            'contextual_insights': email_data.get('contextual_insights', []),
+            'advanced_reply': email_data.get('advanced_reply', {}),
+            'entities': email_data.get('entities', {})
+        }
+        
+        return render_template('email_details.html', **details_data)
+        
+    except Exception as e:
+        print(f"❌ Error loading details page: {e}")
+        return render_template('action_error.html', 
+                             error=str(e),
+                             action='view details',
                              user_id=user_id), 500
 
 @app.route('/edit/<user_id>/<email_id>')
@@ -644,8 +750,7 @@ def send_digest_route(user_id: str):
         # Create digest email
         message = MIMEMultipart('alternative')
         message['to'] = user['email']
-        message['subject'] = f"📧 Daily Email Digest - {datetime.now().strftime('%A, %B %d')}"
-        
+        message['subject'] = f"📧 VoxMail Daily Digest - {datetime.now().strftime('%A, %B %d')}"
         html_part = MIMEText(digest_html, 'html')
         message.attach(html_part)
         
@@ -656,11 +761,15 @@ def send_digest_route(user_id: str):
             body={'raw': raw_message}
         ).execute()
         
-        print(f"✅ Digest sent to {user['email']}")
+        # Record digest sent for stats tracking
+        total_emails = digest_data.get('total_emails', 0)
+        digest_manager.record_digest_sent(user_id, total_emails)
+        
+        print(f"✅ Digest sent to {user['email']} - {total_emails} emails processed")
         return jsonify({
             'success': True,
             'message': f"Digest sent to {user['email']}",
-            'total_emails': digest_data.get('total_emails', 0)
+            'total_emails': total_emails
         })
         
     except Exception as e:
@@ -674,37 +783,65 @@ def send_digest_route(user_id: str):
 @app.route('/')
 def dashboard():
     """
-    Main dashboard showing all authenticated users
+    Comprehensive Admin Dashboard
     
-    For OAuth-based user management, users must authenticate 
-    through Google Cloud to be added to the system.
+    Shows all users, system statistics, health monitoring, and recent activity.
+    This is your main control panel for managing the email digest system.
     """
-    users_data = []
-    for user_id, user_info in user_manager.users.items():
-        # Ensure all fields exist with defaults for backward compatibility
-        user_data = {
-            'id': user_id,
-            'email': user_info.get('email', 'Unknown'),
-            'digest_time': user_info.get('digest_time', 8),
-            'timezone': user_info.get('timezone', 'UTC'),
-            'vacation_mode': user_info.get('vacation_mode', False),
-            'show_insights_by_default': user_info.get('show_insights_by_default', False),
-            'weekend_digests': user_info.get('weekend_digests', 'full'),
-            'created_at': user_info.get('created_at', 'Unknown')
+    try:
+        # Get all users with detailed information
+        users = []
+        for user_id, user_info in user_manager.users.items():
+            user_data = {
+                'id': user_id,
+                'email': user_info.get('email', 'Unknown'),
+                'digest_time': user_info.get('digest_time', 8),
+                'timezone': user_info.get('timezone', 'UTC'),
+                'vacation_mode': user_info.get('vacation_mode', False),
+                'show_insights_by_default': user_info.get('show_insights_by_default', False),
+                'weekend_digests': user_info.get('weekend_digests', 'full'),
+                'created_at': user_info.get('created_at', 'Unknown')
+            }
+            users.append(user_data)
+        
+        # System statistics with real tracking
+        today_stats = digest_manager.get_stats_today()
+        stats = {
+            'total_users': len(users),
+            'active_users_today': len([u for u in users if not u.get('vacation_mode', False)]),
+            'digests_sent_today': today_stats['digests_sent_today'],
+            'total_emails_processed': today_stats['total_emails_processed']
         }
-        users_data.append(user_data)
+        
+        # Recent activity (can be expanded with real tracking)
+        recent_activity = []
+        for user in users[:5]:  # Show last 5 users
+            recent_activity.append({
+                'type': 'user',
+                'description': f"User: {user['email']}",
+                'details': f"Digest time: {user['digest_time']}:00 {user['timezone']}",
+                'timestamp': user.get('created_at', 'Unknown')
+            })
+        
+        # System health check
+        system_health = {
+            'ai_processing': True,
+            'gmail_api': True,
+            'email_sending': True,
+            'storage': True
+        }
+        
+        return render_template('admin_dashboard.html',
+                             users=users,
+                             stats=stats,
+                             recent_activity=recent_activity,
+                             system_health=system_health)
     
-    # System status check
-    system_status = {
-        'ai_processing': True,  # Could add actual health checks
-        'gmail_api': True,
-        'email_sending': True,
-        'storage': True
-    }
-    
-    return render_template('index.html', 
-                         users=users_data, 
-                         system_status=system_status)
+    except Exception as e:
+        print(f"❌ Error loading dashboard: {e}")
+        return render_template('error.html',
+                             error_code=500,
+                             error_message=f"Dashboard error: {str(e)}"), 500
 
 @app.route('/oauth_login')
 def oauth_login():
@@ -774,58 +911,10 @@ def preview_digest(user_id: str):
 @app.route('/admin')
 def admin_dashboard():
     """
-    Admin dashboard for managing all users and system health
+    Redirect to main dashboard (merged into /)
+    Kept for backward compatibility with existing links/bookmarks
     """
-    try:
-        # Get all users
-        users = []
-        for user_id, user_info in user_manager.users.items():
-            users.append({
-                'id': user_id,
-                'email': user_info.get('email', 'Unknown'),
-                'digest_time': user_info.get('digest_time', 8),
-                'timezone': user_info.get('timezone', 'UTC'),
-                'vacation_mode': user_info.get('vacation_mode', False),
-                'created_at': user_info.get('created_at', 'Unknown')
-            })
-        
-        # Mock statistics (you can implement real stats later)
-        stats = {
-            'total_users': len(users),
-            'active_users_today': len(users),  # Mock data
-            'digests_sent_today': 0,  # Mock data
-            'total_emails_processed': 0  # Mock data
-        }
-        
-        # Mock recent activity
-        recent_activity = [
-            {
-                'type': 'user',
-                'description': 'Test user created',
-                'details': 'User jesusegunadewunmi@gmail.com was created',
-                'timestamp': '2 hours ago'
-            }
-        ]
-        
-        # System health check
-        system_health = {
-            'ai_processing': True,
-            'gmail_api': True,
-            'email_sending': True,
-            'storage': True
-        }
-        
-        return render_template('admin_dashboard.html',
-                             users=users,
-                             stats=stats,
-                             recent_activity=recent_activity,
-                             system_health=system_health)
-    
-    except Exception as e:
-        print(f"❌ Error loading admin dashboard: {e}")
-        return render_template('error.html',
-                             error_code=500,
-                             error_message=f"Admin dashboard error: {str(e)}"), 500
+    return redirect(url_for('dashboard'))
 
 @app.route('/system_check')
 def system_check():
@@ -863,24 +952,151 @@ def bulk_actions():
 @app.route('/send_all_digests')
 def send_all_digests():
     """
-    Send digests to all users
+    Send digests to all active users (manual bulk send)
+    
+    This is different from the scheduler:
+    - Scheduler: Automatic, runs at user's preferred time
+    - This route: Manual trigger, sends immediately to ALL active users
+    
+    Use cases:
+    - Testing digest generation for all users
+    - Emergency digest send outside normal schedule
+    - Admin-triggered digest after system maintenance
     """
     try:
-        sent_count = 0
-        for user_id in user_manager.users.keys():
+        print("=" * 60)
+        print("📤 Manual Bulk Digest Send Initiated")
+        print("=" * 60)
+        
+        # Track results
+        results = {
+            'success': [],
+            'failed': [],
+            'skipped': []
+        }
+        
+        # Get all users
+        total_users = len(user_manager.users)
+        print(f"👥 Processing {total_users} user(s)...")
+        
+        for user_id, user_info in user_manager.users.items():
+            user_email = user_info.get('email', user_id)
+            
             try:
-                # You could call send_digest_route here
-                sent_count += 1
-            except:
+                # Skip users in vacation mode
+                if user_info.get('vacation_mode', False):
+                    print(f"✈️ Skipping {user_email} (vacation mode)")
+                    results['skipped'].append({
+                        'email': user_email,
+                        'reason': 'vacation_mode'
+                    })
+                    continue
+                
+                print(f"\n🔄 Processing {user_email}...")
+                
+                # Generate digest using your AI system
+                print(f"   🤖 Generating AI digest...")
+                digest_data = generate_user_digest(user_id)
+                
+                if not digest_data or digest_data.get('error'):
+                    error_msg = digest_data.get('processing_summary', {}).get('error', 'Unknown error')
+                    print(f"   ❌ Failed to generate digest: {error_msg}")
+                    results['failed'].append({
+                        'email': user_email,
+                        'error': error_msg
+                    })
+                    continue
+                
+                # Check if there are any emails to report
+                total_emails = digest_data.get('processing_summary', {}).get('total_processed', 0)
+                if total_emails == 0:
+                    print(f"   📭 No new emails, skipping")
+                    results['skipped'].append({
+                        'email': user_email,
+                        'reason': 'no_new_emails'
+                    })
+                    continue
+                
+                # Generate HTML email
+                print(f"   📝 Creating HTML digest...")
+                from email_templates import create_digest_email
+                digest_html = create_digest_email(digest_data, BASE_URL)
+                
+                # Send email
+                print(f"   📧 Sending email...")
+                gmail_service = user_manager.get_user_gmail_service(user_id)
+                
+                message = MIMEMultipart('alternative')
+                message['to'] = user_email
+                message['subject'] = f"📧 VoxMail Daily Digest - {datetime.now().strftime('%A, %B %d')}"
+                html_part = MIMEText(digest_html, 'html')
+                message.attach(html_part)
+                
+                raw_message = base64.urlsafe_b64encode(message.as_bytes()).decode('utf-8')
+                send_result = gmail_service.users().messages().send(
+                    userId='me',
+                    body={'raw': raw_message}
+                ).execute()
+                
+                # Record success
+                digest_manager.record_digest_sent(user_id, total_emails)
+                
+                results['success'].append({
+                    'email': user_email,
+                    'emails_processed': total_emails,
+                    'message_id': send_result.get('id')
+                })
+                
+                print(f"   ✅ Sent successfully! ({total_emails} emails processed)")
+                
+                # Small delay to avoid rate limiting
+                time.sleep(2)
+                
+            except Exception as user_error:
+                print(f"   ❌ Error: {user_error}")
+                results['failed'].append({
+                    'email': user_email,
+                    'error': str(user_error)
+                })
                 continue
         
-        return render_template('action_success.html',
-                             message=f"Attempted to send digests to {sent_count} users")
+        # Calculate statistics
+        success_count = len(results['success'])
+        failed_count = len(results['failed'])
+        skipped_count = len(results['skipped'])
+        
+        print("\n" + "=" * 60)
+        print("📊 Bulk Send Summary:")
+        print(f"   ✅ Successful: {success_count}")
+        print(f"   ❌ Failed: {failed_count}")
+        print(f"   ⏭️ Skipped: {skipped_count}")
+        print("=" * 60)
+        
+        # Return JSON response with detailed results
+        return jsonify({
+            'success': True,
+            'total_users': total_users,
+            'sent_count': success_count,
+            'failed_count': failed_count,
+            'skipped_count': skipped_count,
+            'details': {
+                'successful': results['success'],
+                'failed': results['failed'],
+                'skipped': results['skipped']
+            },
+            'message': f"Sent {success_count} digest(s), {failed_count} failed, {skipped_count} skipped"
+        })
     
     except Exception as e:
-        return render_template('action_error.html',
-                             error=str(e),
-                             action='send all digests')
+        print(f"\n❌ Fatal error in bulk send: {e}")
+        import traceback
+        traceback.print_exc()
+        
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'message': 'Bulk send failed'
+        }), 500
 
 @app.route('/create_test_user')
 def create_test_user():
@@ -953,10 +1169,7 @@ def internal_error(error):
 # =============================================================================
 
 if __name__ == '__main__':
-    print("🚀 Starting AI Email Digest Web Application...")
-    print("=" * 60)
-    print("📧 Day 3: Web Interface & Interactive Features")
-    print("🤖 Integrated with your advanced AI system")
+    print("🚀 Starting VoxMail Web Application...")
     print("=" * 60)
     
     # Create a test user if none exist
@@ -964,20 +1177,17 @@ if __name__ == '__main__':
         print("👤 Creating test user...")
         user_manager.create_user(
             'test_user', 
-            'jesusegunadewunmi@gmail.com',  # Updated to your real email
+            'jesusegunadewunmi@gmail.com',
             digest_time=8,
             timezone='UTC'
         )
         print("✅ Test user created: test_user")
     
-    print(f"\n🌐 Web interface available at: {BASE_URL}")
-    print("📋 Available routes:")
-    print("   / - Admin dashboard")
-    print("   /generate_digest/<user_id> - Test digest generation")
-    print("   /send_digest/<user_id> - Send digest email")
-    print("   /settings/<user_id> - User settings")
-    print("   /send/<user_id>/<email_id> - Send reply button")
-    print("   /edit/<user_id>/<email_id> - Edit reply button")
+    print(f"\n🌐 Web interface: {BASE_URL}")
     
     # Run Flask app
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    port = int(os.environ.get('PORT', 5000))
+    debug = False if os.environ.get('PORT') else True
+    
+    print(f"🚀 Starting Flask on 0.0.0.0:{port}")
+    app.run(debug=debug, host='0.0.0.0', port=port, threaded=True)
