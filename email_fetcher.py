@@ -466,6 +466,35 @@ class EmailFetcher:
         cleaned = raw_body
         
         # =============================================================================
+        # DECODE HTML ENTITIES AND REMOVE HTML TAGS
+        # =============================================================================
+        
+        # Use BeautifulSoup to properly parse HTML emails
+        if BEAUTIFULSOUP_AVAILABLE and ('<html' in cleaned.lower() or '&' in cleaned):
+            try:
+                soup = BeautifulSoup(cleaned, 'html.parser')
+                # Remove script and style elements
+                for script in soup(["script", "style"]):
+                    script.decompose()
+                # Get text and decode HTML entities
+                cleaned = soup.get_text()
+            except:
+                # Fallback to basic HTML stripping
+                import html
+                cleaned = html.unescape(cleaned)
+                cleaned = re.sub(r'<[^>]+>', '', cleaned)
+        else:
+            # Basic HTML entity decoding
+            import html
+            cleaned = html.unescape(cleaned)
+            # Remove HTML tags
+            cleaned = re.sub(r'<[^>]+>', '', cleaned)
+        
+        # Remove zero-width spaces and other invisible characters
+        cleaned = re.sub(r'[\u200B-\u200D\uFEFF]', '', cleaned)  # Zero-width spaces
+        cleaned = re.sub(r'[\u00A0]', ' ', cleaned)  # Non-breaking spaces to regular spaces
+        
+        # =============================================================================
         # REMOVE QUOTED PREVIOUS EMAILS
         # =============================================================================
         
@@ -505,6 +534,14 @@ class EmailFetcher:
         # Remove common email artifacts
         cleaned = re.sub(r'Sent from my \w+', '', cleaned)  # "Sent from my iPhone" etc.
         cleaned = re.sub(r'Get Outlook for \w+', '', cleaned)  # Outlook mobile signatures
+        
+        # Remove common marketing email artifacts
+        cleaned = re.sub(r'View in browser', '', cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r'Unsubscribe.*$', '', cleaned, flags=re.IGNORECASE | re.MULTILINE)
+        cleaned = re.sub(r'Click here.*$', '', cleaned, flags=re.IGNORECASE | re.MULTILINE)
+        
+        # Remove URLs that are just tracking links
+        cleaned = re.sub(r'https?://[^\s]+\?utm_[^\s]+', '[link]', cleaned)
         
         # =============================================================================
         # FINAL CLEANUP AND VALIDATION
