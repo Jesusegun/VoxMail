@@ -35,17 +35,20 @@ from ai_runtime import get_advanced_processor, SEMAPHORE
 # Lazy import globals - AI components loaded only when needed
 authenticate_gmail = None
 EmailFetcher = None
+auth_multiuser = None
 
 def _lazy_load_ai_components():
     """Load AI components only when actually needed to save memory at startup"""
-    global authenticate_gmail, EmailFetcher
+    global authenticate_gmail, EmailFetcher, auth_multiuser
     if authenticate_gmail is None:
         print("📦 Loading AI components...")
         try:
             from auth_test import authenticate_gmail as _auth
             from email_fetcher import EmailFetcher as _Fetcher
+            import auth_multiuser as _auth_multi
             authenticate_gmail = _auth
             EmailFetcher = _Fetcher
+            auth_multiuser = _auth_multi
             print("✅ AI components loaded successfully")
         except ImportError as e:
             print(f"❌ Error importing AI components: {e}")
@@ -66,6 +69,7 @@ app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 # Admin credentials from environment variables
 ADMIN_USERNAME = os.environ.get('ADMIN_USERNAME', 'ben')
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'Taiwoben123$')
+ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL', 'jesusegunadewunmi@gmail.com')  # Special admin user
 
 # Configuration
 BASE_URL = os.environ.get('BASE_URL', 'http://localhost:5000')
@@ -185,82 +189,236 @@ class UserManager:
             self._save_users()
             print(f"✅ Updated preferences for user {user_id}")
     
-    def authenticate_and_register_user(self) -> Optional[str]:
+    def start_oauth_flow(self, flask_session) -> str:
         """
-        Authenticate user via Google OAuth and register them if new.
-        This is how users are actually added - through OAuth authentication.
+        Start OAuth flow by generating authorization URL.
+        
+        Args:
+            flask_session: Flask session object to store state token
         
         Returns:
-            str: User ID if successful, None if failed
+            str: Authorization URL to redirect user to Google
         """
+        _lazy_load_ai_components()
+        
+        print("🌐 Starting OAuth flow for new user...")
+        
+        # Generate unique state token for CSRF protection
+        state = auth_multiuser.generate_state_token()
+        flask_session['oauth_state'] = state
+        
+        # Build redirect URI (where Google will send user back)
+        redirect_uri = f"{BASE_URL}/oauth_callback"
+        
+        # Generate authorization URL
+        auth_url = auth_multiuser.get_oauth_authorization_url(
+            redirect_uri=redirect_uri,
+            state=state
+        )
+        
+        print(f"✅ Authorization URL generated")
+        print(f"🔗 Redirect URI: {redirect_uri}")
+        return auth_url
+    
+    def complete_oauth_flow(self, auth_code: str, state: str, flask_session) -> str:
+        """
+        Complete OAuth flow by exchanging authorization code for token.
+        
+        Args:
+            auth_code: Authorization code from Google callback
+            state: State token from Google callback
+            flask_session: Flask session object to validate state
+        
+        Returns:
+            str: User ID of authenticated user
+        
+        Raises:
+            ValueError: If state token doesn't match (CSRF attack)
+            Exception: If OAuth flow fails
+        """
+        _lazy_load_ai_components()
+        
+        print("🔄 Completing OAuth flow...")
+        
+        # Validate state token (CSRF protection)
+        expected_state = flask_session.get('oauth_state')
+        if not expected_state or state != expected_state:
+            raise ValueError("Invalid state token - possible CSRF attack")
+        
+        print("✅ State token validated")
+        
+        # Generate temporary token path
+        temp_token_path = f'credentials/temp_{uuid.uuid4().hex}_token.pickle'
+        redirect_uri = f"{BASE_URL}/oauth_callback"
+        
         try:
-            # Use your existing OAuth authentication
-            gmail_service = authenticate_gmail()
-            if not gmail_service:
-                return None
-                
-            # Get user's Gmail profile to extract email
-            profile = gmail_service.users().getProfile(userId='me').execute()
-            email_address = profile.get('emailAddress')
+            # Exchange authorization code for access token
+            gmail_service, email_address = auth_multiuser.handle_oauth_callback(
+                auth_code=auth_code,
+                redirect_uri=redirect_uri,
+                token_path=temp_token_path
+            )
             
-            if not email_address:
-                print("❌ Could not get email address from Gmail profile")
-                return None
-                
+            print(f"✅ OAuth successful for: {email_address}")
+            
             # Create user ID from email (normalized)
             user_id = email_address.replace('@', '_at_').replace('.', '_dot_')
+            final_token_path = f'credentials/user_{user_id}_token.pickle'
+            
+            # Move temp token to final location
+            import shutil
+            shutil.move(temp_token_path, final_token_path)
+            print(f"💾 Token moved to: {final_token_path}")
             
             # Check if user already exists
             if user_id in self.users:
-                print(f"✅ Existing user authenticated: {email_address}")
-                # Update last login time
+                print(f"✅ Existing user re-authenticated: {email_address}")
+                # Update last login and token path
                 self.users[user_id]['last_login'] = datetime.now().isoformat()
+                self.users[user_id]['token_path'] = final_token_path
                 self._save_users()
-                return user_id
+            else:
+                # Create new user
+                print(f"🆕 Creating new user: {email_address}")
                 
-            # Create new user from OAuth authentication
-            print(f"🆕 Creating new user from OAuth: {email_address}")
-            user_data = {
-                'email': email_address,
-                'digest_time': 8,  # 8 AM default
-                'timezone': 'UTC',
-                'weekend_digests': 'urgent_only',
-                'vacation_mode': False,
-                'vacation_delegate': '',
-                'show_insights_by_default': False,
-                'created_at': datetime.now().isoformat(),
-                'last_login': datetime.now().isoformat(),
-                'credentials_path': f'credentials/user_{user_id}_credentials.json',
-                'token_path': f'credentials/user_{user_id}_token.pickle',
-                'gmail_messages_total': profile.get('messagesTotal', 0),
-                'gmail_threads_total': profile.get('threadsTotal', 0),
-                'total_digests_sent': 0
-            }
+                # Get Gmail profile for stats
+                try:
+                    profile = gmail_service.users().getProfile(userId='me').execute()
+                    messages_total = profile.get('messagesTotal', 0)
+                    threads_total = profile.get('threadsTotal', 0)
+                except:
+                    messages_total = 0
+                    threads_total = 0
+                
+                user_data = {
+                    'email': email_address,
+                    'digest_time': 8,  # 8 AM default
+                    'timezone': 'UTC',
+                    'weekend_digests': 'urgent_only',
+                    'vacation_mode': False,
+                    'vacation_delegate': '',
+                    'show_insights_by_default': False,
+                    'created_at': datetime.now().isoformat(),
+                    'last_login': datetime.now().isoformat(),
+                    'credentials_path': f'credentials/user_{user_id}_credentials.json',
+                    'token_path': final_token_path,
+                    'gmail_messages_total': messages_total,
+                    'gmail_threads_total': threads_total,
+                    'total_digests_sent': 0
+                }
+                
+                self.users[user_id] = user_data
+                self._save_users()
+                print(f"✅ New user created: {email_address}")
             
-            self.users[user_id] = user_data
-            self._save_users()
+            # Clear state token from session
+            flask_session.pop('oauth_state', None)
             
-            print(f"✅ New user registered successfully: {email_address}")
             return user_id
             
         except Exception as e:
-            print(f"❌ Error in OAuth authentication/registration: {e}")
-            return None
+            # Clean up temp token if it exists
+            if os.path.exists(temp_token_path):
+                os.remove(temp_token_path)
+            print(f"❌ OAuth flow failed: {e}")
+            raise
 
     def get_user_gmail_service(self, user_id: str):
-        """Get authenticated Gmail service for specific user"""
+        """Get authenticated Gmail service for specific user using their token"""
+        _lazy_load_ai_components()
+        
         user = self.get_user(user_id)
         if not user:
             raise ValueError(f"User {user_id} not found")
         
-        # Each user has their own credentials in Google Cloud Console
-        # For now, we'll use the main auth_test.py authentication
-        # In production, you'd have per-user credential management with
-        # individual OAuth tokens stored per user
-        return authenticate_gmail()
+        # Get user's token path
+        token_path = user.get('token_path')
+        if not token_path:
+            raise ValueError(f"User {user_id} has no token_path - needs to complete OAuth")
+        
+        # Authenticate using user-specific token
+        gmail_service = auth_multiuser.authenticate_gmail_multiuser(token_path)
+        
+        if not gmail_service:
+            raise Exception(f"Failed to authenticate user {user_id} - token may be invalid")
+        
+        return gmail_service
 
 # Initialize user manager
 user_manager = UserManager()
+
+# =============================================================================
+# TOKEN MIGRATION FOR EXISTING USERS
+# =============================================================================
+
+def migrate_existing_user_token():
+    """
+    Migrate the existing single-user token to the new per-user token system.
+    This is called once on startup to handle the transition from single-user
+    to multi-user OAuth.
+    """
+    old_token_path = 'credentials/token.pickle'
+    
+    # Check if old token exists
+    if not os.path.exists(old_token_path):
+        print("📂 No old token to migrate")
+        return
+    
+    print("🔄 Migrating existing OAuth token to multi-user system...")
+    
+    try:
+        # Load old token to get email address
+        _lazy_load_ai_components()
+        
+        import pickle
+        from googleapiclient.discovery import build
+        
+        with open(old_token_path, 'rb') as f:
+            creds = pickle.load(f)
+        
+        # Build Gmail service to get user email
+        service = build('gmail', 'v1', credentials=creds)
+        profile = service.users().getProfile(userId='me').execute()
+        email_address = profile.get('emailAddress')
+        
+        if not email_address:
+            print("❌ Could not extract email from old token")
+            return
+        
+        print(f"📧 Old token belongs to: {email_address}")
+        
+        # Create user ID
+        user_id = email_address.replace('@', '_at_').replace('.', '_dot_')
+        new_token_path = f'credentials/user_{user_id}_token.pickle'
+        
+        # Check if new token already exists
+        if os.path.exists(new_token_path):
+            print(f"✅ Token already migrated to: {new_token_path}")
+            return
+        
+        # Copy old token to new location
+        import shutil
+        shutil.copy2(old_token_path, new_token_path)
+        print(f"✅ Token migrated to: {new_token_path}")
+        
+        # Update user record if exists
+        user = user_manager.get_user(user_id)
+        if user:
+            user['token_path'] = new_token_path
+            user_manager._save_users()
+            print(f"✅ Updated user record for {user_id}")
+        else:
+            print(f"⚠️  User {user_id} not found in users.json - they'll need to re-authenticate")
+        
+        print("✅ Token migration complete!")
+        print(f"💡 You can now delete the old token: {old_token_path}")
+        
+    except Exception as e:
+        print(f"❌ Token migration failed: {e}")
+        print("💡 Users may need to re-authenticate via /oauth_login")
+
+# Run migration on startup
+migrate_existing_user_token()
 
 # =============================================================================
 # DIGEST DATA MANAGEMENT
@@ -1170,32 +1328,76 @@ def dashboard():
 @app.route('/oauth_login')
 def oauth_login():
     """
-    OAuth authentication endpoint - this is how users are actually added!
+    OAuth authentication endpoint - Start multi-user OAuth flow.
     
-    When someone visits this URL:
-    1. They go through Google OAuth flow
-    2. If successful, they're automatically registered as a user
-    3. They're redirected to their user settings
+    This redirects the user to Google's consent screen where they can
+    authorize VoxMail to access their Gmail account.
     """
-    _lazy_load_ai_components()
     try:
-        print("🔐 Starting OAuth authentication for new user...")
+        print("🔐 Starting OAuth flow for new user...")
         
-        # Authenticate and register user through OAuth
-        user_id = user_manager.authenticate_and_register_user()
+        # Start OAuth flow and get authorization URL
+        auth_url = user_manager.start_oauth_flow(session)
         
-        if user_id:
-            print(f"✅ OAuth authentication successful for user: {user_id}")
-            return redirect(url_for('user_settings', user_id=user_id))
-        else:
-            print("❌ OAuth authentication failed")
-            return render_template('action_error.html', 
-                                 error="OAuth authentication failed. Please try again.")
+        print(f"✅ Redirecting to Google OAuth: {auth_url[:50]}...")
+        return redirect(auth_url)
     
     except Exception as e:
-        print(f"❌ Error during OAuth login: {e}")
+        print(f"❌ Error starting OAuth flow: {e}")
+        import traceback
+        traceback.print_exc()
         return render_template('action_error.html', 
-                             error=f"Authentication error: {str(e)}")
+                             error=f"Failed to start OAuth flow: {str(e)}")
+
+@app.route('/oauth_callback')
+def oauth_callback():
+    """
+    OAuth callback endpoint - Complete multi-user OAuth flow.
+    
+    Google redirects here after user grants/denies permissions.
+    We exchange the authorization code for an access token and
+    create/update the user account.
+    """
+    try:
+        # Get authorization code and state from query params
+        auth_code = request.args.get('code')
+        state = request.args.get('state')
+        error = request.args.get('error')
+        
+        # Handle errors (user denied access)
+        if error:
+            print(f"❌ OAuth error from Google: {error}")
+            return render_template('action_error.html', 
+                                 error=f"OAuth authorization denied: {error}")
+        
+        # Validate required parameters
+        if not auth_code or not state:
+            print("❌ Missing OAuth parameters")
+            return render_template('action_error.html', 
+                                 error="Missing OAuth parameters (code or state)")
+        
+        print(f"🔄 Processing OAuth callback...")
+        print(f"📝 Authorization code: {auth_code[:20]}...")
+        print(f"🔐 State token: {state[:20]}...")
+        
+        # Complete OAuth flow
+        user_id = user_manager.complete_oauth_flow(auth_code, state, session)
+        
+        print(f"✅ OAuth flow completed successfully for user: {user_id}")
+        return redirect(url_for('user_settings', user_id=user_id))
+    
+    except ValueError as e:
+        # CSRF attack or invalid state
+        print(f"❌ OAuth callback validation failed: {e}")
+        return render_template('action_error.html', 
+                             error=f"OAuth validation failed: {str(e)}"), 403
+    
+    except Exception as e:
+        print(f"❌ OAuth callback failed: {e}")
+        import traceback
+        traceback.print_exc()
+        return render_template('action_error.html', 
+                             error=f"OAuth callback failed: {str(e)}"), 500
 
 @app.route('/preview_digest/<user_id>')
 def preview_digest(user_id: str):
