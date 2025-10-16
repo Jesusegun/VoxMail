@@ -259,20 +259,6 @@
                 </div>
             </form>
 
-            <!-- Current Status -->
-            <div class="section" style="margin-top: 32px; border-top: 1px solid #e5e7eb; padding-top: 24px;">
-                <div class="section-title">📊 Current Status</div>
-                <div class="current-settings">
-                    <strong>Next digest:</strong> Tomorrow at {{ '%02d:00'|format(user.digest_time) }} {{ user.timezone }}<br>
-                    <strong>Vacation mode:</strong> {{ 'ON' if user.vacation_mode else 'OFF' }}<br>
-                    <strong>Account created:</strong> {{ user.created_at[:10] if user.created_at else 'Unknown' }}
-                </div>
-                
-                <div style="margin-top: 16px;">
-                    <a href="/generate_digest/{{ user_id }}" class="btn btn-secondary">🧪 Test Digest Generation</a>
-                    <a href="/send_digest/{{ user_id }}" class="btn btn-secondary">📧 Send Test Digest</a>
-                </div>
-            </div>
         </div>
     </div>
 </body>
