@@ -26,7 +26,8 @@ import base64
 import time
 from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional
-from flask import Flask, render_template, request, redirect, url_for, jsonify, abort
+from functools import wraps
+from flask import Flask, render_template, request, redirect, url_for, jsonify, abort, session
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from ai_runtime import get_advanced_processor, SEMAPHORE
@@ -57,6 +58,15 @@ def _lazy_load_ai_components():
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'dev-key-change-in-production')
 
+# Session configuration for admin authentication
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=30)
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+
+# Admin credentials from environment variables
+ADMIN_USERNAME = os.environ.get('ADMIN_USERNAME', 'ben')
+ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'Taiwoben123$')
+
 # Configuration
 BASE_URL = os.environ.get('BASE_URL', 'http://localhost:5000')
 USERS_DATA_FILE = 'data/users.json'
@@ -65,6 +75,41 @@ DIGEST_DATA_FILE = 'data/digest_data.json'
 # Ensure data directories exist
 os.makedirs('data', exist_ok=True)
 os.makedirs('templates', exist_ok=True)
+
+# =============================================================================
+# AUTHENTICATION SYSTEM
+# =============================================================================
+
+def check_admin_credentials(username: str, password: str) -> bool:
+    """Check if provided credentials match admin credentials"""
+    return username == ADMIN_USERNAME and password == ADMIN_PASSWORD
+
+def check_session_timeout():
+    """Check if session has timed out (30 minutes)"""
+    if 'logged_in' in session and 'last_activity' in session:
+        last_activity = datetime.fromisoformat(session['last_activity'])
+        if datetime.now() - last_activity > timedelta(minutes=30):
+            session.clear()
+            return True
+    return False
+
+def login_required(f):
+    """Decorator to protect admin routes - requires login"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        # Check if session has timed out
+        if check_session_timeout():
+            return redirect(url_for('admin_login', next=request.url, timeout=1))
+        
+        # Check if user is logged in
+        if not session.get('logged_in'):
+            return redirect(url_for('admin_login', next=request.url))
+        
+        # Update last activity time
+        session['last_activity'] = datetime.now().isoformat()
+        
+        return f(*args, **kwargs)
+    return decorated_function
 
 # =============================================================================
 # USER MANAGEMENT SYSTEM
@@ -1059,6 +1104,7 @@ def send_digest_route(user_id: str):
 # =============================================================================
 
 @app.route('/')
+@login_required
 def dashboard():
     """
     Comprehensive Admin Dashboard
@@ -1188,6 +1234,7 @@ def preview_digest(user_id: str):
                              user_id=user_id), 500
 
 @app.route('/admin')
+@login_required
 def admin_dashboard():
     """
     Redirect to main dashboard (merged into /)
@@ -1196,6 +1243,7 @@ def admin_dashboard():
     return redirect(url_for('dashboard'))
 
 @app.route('/system_check')
+@login_required
 def system_check():
     """
     System health check endpoint
@@ -1221,6 +1269,7 @@ def system_check():
         }), 500
 
 @app.route('/bulk_actions')
+@login_required
 def bulk_actions():
     """
     Bulk actions page for admin
@@ -1229,6 +1278,7 @@ def bulk_actions():
                          message="Bulk actions feature coming soon!")
 
 @app.route('/send_all_digests')
+@login_required
 def send_all_digests():
     """
     Send digests to all active users (manual bulk send)
@@ -1378,6 +1428,7 @@ def send_all_digests():
         }), 500
 
 @app.route('/create_test_user')
+@login_required
 def create_test_user():
     """
     Create a test user for development/testing
@@ -1404,6 +1455,7 @@ def create_test_user():
                              action='create test user')
 
 @app.route('/create_user', methods=['GET', 'POST'])
+@login_required
 def create_user():
     """
     DEPRECATED: Manual user creation
@@ -1426,6 +1478,53 @@ def create_user():
     
     return render_template('action_error.html',
                          error="Please use OAuth authentication instead: /oauth_login")
+
+# =============================================================================
+# AUTHENTICATION ROUTES
+# =============================================================================
+
+@app.route('/admin/login', methods=['GET', 'POST'])
+def admin_login():
+    """
+    Admin login page
+    """
+    if request.method == 'POST':
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '')
+        
+        if check_admin_credentials(username, password):
+            # Set session variables
+            session['logged_in'] = True
+            session['username'] = username
+            session['last_activity'] = datetime.now().isoformat()
+            session.permanent = True
+            
+            print(f"✅ Admin logged in: {username}")
+            
+            # Redirect to original destination or dashboard
+            next_page = request.args.get('next')
+            if next_page:
+                return redirect(next_page)
+            return redirect(url_for('dashboard'))
+        else:
+            print(f"❌ Failed login attempt for username: {username}")
+            return render_template('admin_login.html', error='Invalid username or password')
+    
+    # Check for session timeout message
+    timeout = request.args.get('timeout')
+    timeout_message = 'Your session has expired. Please login again.' if timeout else None
+    
+    return render_template('admin_login.html', timeout_message=timeout_message)
+
+@app.route('/admin/logout')
+def admin_logout():
+    """
+    Admin logout - clear session and redirect to login
+    """
+    username = session.get('username', 'Unknown')
+    session.clear()
+    print(f"👋 Admin logged out: {username}")
+    return redirect(url_for('admin_login'))
 
 # =============================================================================
 # ERROR HANDLERS
