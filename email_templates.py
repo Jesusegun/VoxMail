@@ -467,7 +467,6 @@ def generate_email_card_html(email: Dict[str, Any], user_id: str, base_url: str,
     - Advanced reply with tone matching
     - Contextual insights  
     - Thread analysis
-    - Calendar events
     - Priority reasoning
     """
     
@@ -486,7 +485,6 @@ def generate_email_card_html(email: Dict[str, Any], user_id: str, base_url: str,
     advanced_reply = email.get('advanced_reply', {}) or {}
     contextual_insights = email.get('contextual_insights', [])
     tone_analysis = email.get('tone_analysis', {})
-    calendar_events = email.get('calendar_events', {})
     thread_analysis = email.get('thread_analysis', {})
     priority_reasons = email.get('priority_reasons', [])
     
@@ -543,26 +541,6 @@ def generate_email_card_html(email: Dict[str, Any], user_id: str, base_url: str,
 
     # Show additional AI insights if expanded or high priority
     if expanded or priority_level == 'High' or user_prefs.get('show_insights_by_default', False):
-        
-        # Calendar events (only show if actually meaningful)
-        calendar_meetings = calendar_events.get('meetings', [])
-        calendar_deadlines = calendar_events.get('deadlines', [])
-        
-        if calendar_meetings or calendar_deadlines:
-            card_html += f"""
-                        <div class="insights-list">
-                            <div style="font-weight: 600; color: {COLORS['text_medium']}; margin-bottom: 4px;">📅 Calendar Intelligence:</div>
-"""
-            for meeting in calendar_meetings[:2]:
-                meeting_text = meeting.get('raw_text', str(meeting))[:50]
-                card_html += f'                            <div class="insight-item">🤝 Meeting: {meeting_text}</div>\n'
-            
-            for deadline in calendar_deadlines[:2]:
-                deadline_text = deadline.get('deadline', str(deadline))[:50]
-                card_html += f'                            <div class="insight-item">⏰ Deadline: {deadline_text}</div>\n'
-            
-            card_html += "                        </div>\n"
-        
         # Thread analysis (only show if thread is complex)
         if thread_analysis.get('is_continuation') and thread_analysis.get('conversation_stage') in ['extended', 'escalated']:
             stage = thread_analysis.get('conversation_stage', 'ongoing')
@@ -631,7 +609,7 @@ def generate_low_priority_item_html(email: Dict[str, Any]) -> str:
     if not ai_summary:
         ai_summary = truncate_text(subject, 60)
     else:
-        ai_summary = truncate_text(ai_summary, 80)
+        ai_summary = truncate_text(ai_summary, 120)
     
     # Clean format for low priority items
     item_html = f"""
@@ -759,10 +737,6 @@ def test_email_templates():
                 'formality_level': 'medium',
                 'urgency_tone': 'urgent'
             },
-            'calendar_events': {
-                'meetings': [],
-                'deadlines': [{'deadline': 'Friday EOD', 'raw_text': 'by Friday'}]
-            },
             'thread_analysis': {
                 'is_continuation': False,
                 'relationship_type': 'professional'
@@ -791,7 +765,6 @@ def test_email_templates():
             },
             'contextual_insights': ['Regular team communication'],
             'tone_analysis': {'detected_tone': 'business'},
-            'calendar_events': {'meetings': [], 'deadlines': []},
             'thread_analysis': {'is_continuation': False}
         }],
         'low_priority': [{
@@ -808,7 +781,6 @@ def test_email_templates():
             'advanced_reply': None,  # Low priority emails may not get auto-replies
             'contextual_insights': [],
             'tone_analysis': {'detected_tone': 'formal'},
-            'calendar_events': {'meetings': [], 'deadlines': []},
             'thread_analysis': {'is_continuation': False}
         }],
         'processing_summary': {

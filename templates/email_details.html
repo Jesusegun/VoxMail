@@ -221,39 +221,6 @@
             </div>
             {% endif %}
 
-            <!-- Calendar Events -->
-            {% if calendar_events and (calendar_events.get('meetings') or calendar_events.get('deadlines')) %}
-            <div class="section">
-                <div class="section-title">📅 Calendar Intelligence</div>
-                
-                {% if calendar_events.get('meetings') %}
-                <div style="margin-bottom: 12px;">
-                    <div class="insight-label">Meetings Detected</div>
-                    {% for meeting in calendar_events.meetings %}
-                    <div class="insight-item">
-                        <div class="insight-value">
-                            🤝 {{ meeting.get('raw_text', meeting) }}
-                        </div>
-                    </div>
-                    {% endfor %}
-                </div>
-                {% endif %}
-
-                {% if calendar_events.get('deadlines') %}
-                <div>
-                    <div class="insight-label">Deadlines Detected</div>
-                    {% for deadline in calendar_events.deadlines %}
-                    <div class="insight-item">
-                        <div class="insight-value">
-                            ⏰ {{ deadline.get('deadline', deadline) }}
-                        </div>
-                    </div>
-                    {% endfor %}
-                </div>
-                {% endif %}
-            </div>
-            {% endif %}
-
             <!-- Thread Analysis -->
             {% if thread_analysis and thread_analysis.get('is_continuation') %}
             <div class="section">

@@ -10,11 +10,13 @@
 # 4. Daily digest generation and sending
 # 5. User management for 70 users
 #
-# INTEGRATION WITH EXISTING AI SYSTEM:
-# - Uses CompleteEmailAgent from complete_advanced_ai_processor.py
+# INTEGRATION WITH EXISTING AI SYSTEM (PHASE 4):
+# - Uses AdvancedEmailProcessor from complete_advanced_ai_processor.py
+# - Includes Phase 1: AI-enhanced reply generation (BART + spaCy)
+# - Includes Phase 2: Sensitive detection + Edge case handling + Safe mode
+# - Includes Phase 3: Learning tracker for edit feedback
 # - Leverages EmailFetcher from email_fetcher.py  
 # - Uses authenticate_gmail from auth_test.py
-# - Preserves all advanced AI features and insights
 # =============================================================================
 
 import os
@@ -27,22 +29,20 @@ from typing import Dict, List, Any, Optional
 from flask import Flask, render_template, request, redirect, url_for, jsonify, abort
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from ai_runtime import get_advanced_processor, SEMAPHORE
 
 # Lazy import globals - AI components loaded only when needed
-CompleteEmailAgent = None
 authenticate_gmail = None
 EmailFetcher = None
 
 def _lazy_load_ai_components():
     """Load AI components only when actually needed to save memory at startup"""
-    global CompleteEmailAgent, authenticate_gmail, EmailFetcher
-    if CompleteEmailAgent is None:
+    global authenticate_gmail, EmailFetcher
+    if authenticate_gmail is None:
         print("📦 Loading AI components...")
         try:
-            from complete_advanced_ai_processor import CompleteEmailAgent as _Agent
             from auth_test import authenticate_gmail as _auth
             from email_fetcher import EmailFetcher as _Fetcher
-            CompleteEmailAgent = _Agent
             authenticate_gmail = _auth
             EmailFetcher = _Fetcher
             print("✅ AI components loaded successfully")
@@ -332,55 +332,159 @@ def generate_user_digest(user_id: str) -> Dict[str, Any]:
     """
     Generate daily digest for a specific user using your AI system
     
-    This integrates with your existing CompleteEmailAgent and preserves
-    all the sophisticated AI features you've built.
+    PHASE 4 INTEGRATION: Now using AdvancedEmailProcessor with Phase 1+2+3 features:
+    - Phase 1: AI-enhanced reply generation (BART + spaCy)
+    - Phase 2: Sensitive topic detection & edge case handling
+    - Phase 3: Learning from user edits & confidence adjustments
     """
     
     # Load AI components only when actually generating a digest
     _lazy_load_ai_components()
     
-    print(f"🚀 Generating daily digest for user {user_id}")
+    print(f"🚀 Generating daily digest for user {user_id} (Phase 1+2+3 enabled)")
     
     user = user_manager.get_user(user_id)
     if not user:
         raise ValueError(f"User {user_id} not found")
     
     try:
-        # Initialize your AI system - exactly as you designed it
-        print("🤖 Initializing CompleteEmailAgent...")
-        agent = CompleteEmailAgent(use_gmail_api=True)
+        # Initialize AdvancedEmailProcessor via singleton to avoid duplicate model loads
+        print("🤖 Obtaining AdvancedEmailProcessor singleton (Phase 1+2+3)...")
+        processor = get_advanced_processor()
         
-        # Process daily emails using your advanced AI
-        print("📧 Processing emails with advanced AI...")
+        # Get Gmail service for this user
+        print("📧 Fetching recent emails...")
+        gmail_service = user_manager.get_user_gmail_service(user_id)
         
-        # Let your sophisticated AI do what it does best - no dumbing down with thresholds!
-        results = agent.process_daily_emails(
-            hours_back=24,
-            max_emails=None  # No limits as you specified
-        )
+        # Fetch emails using EmailFetcher
+        fetcher = EmailFetcher(gmail_service)
+        raw_emails = fetcher.get_recent_emails(hours=24, include_read=False)
+        print(f"📬 Fetched {len(raw_emails)} emails")
+        
+        if not raw_emails:
+            return {
+                'total_emails': 0,
+                'high_priority': [],
+                'medium_priority': [],
+                'low_priority': [],
+                'processing_summary': {'message': 'No emails found in last 24 hours'},
+                'user_id': user_id,
+                'user_preferences': user,
+                'generated_at': datetime.now().isoformat()
+            }
+        
+        # Process each email with advanced_process_email() (includes Phase 1+2+3)
+        print("🧠 Processing emails with AI-enhanced replies and safety checks...")
+        processed_emails = []
+        
+        for raw_email in raw_emails:
+            try:
+                # Gate AI-heavy work to cap concurrency
+                SEMAPHORE.acquire()
+                try:
+                    # Call advanced_process_email which uses SmartReplyGenerator
+                    result = processor.advanced_process_email(raw_email)
+                finally:
+                    SEMAPHORE.release()
+                
+                # Ensure email has an ID for tracking
+                if 'id' not in result:
+                    result['id'] = str(uuid.uuid4())
+                
+                # Extract confidence and safety metadata from reply
+                advanced_reply = result.get('advanced_reply', {})
+                reply_metadata = advanced_reply.get('reply_metadata', {})
+                
+                # Add Phase 1+2+3 metadata for UI display
+                result['reply_confidence'] = reply_metadata.get('confidence_score', 0.0)
+                result['reply_method'] = reply_metadata.get('generation_method', 'unknown')
+                result['is_sensitive'] = reply_metadata.get('sensitive_detected', False)
+                result['requires_manual_review'] = reply_metadata.get('requires_manual_review', False)
+                result['edge_case_detected'] = reply_metadata.get('edge_case_detected', False)
+                result['risk_level'] = reply_metadata.get('risk_level', 'none')
+                
+                processed_emails.append(result)
+                
+            except Exception as e:
+                print(f"⚠️ Error processing email {raw_email.get('subject', 'Unknown')}: {e}")
+                continue
+        
+        print(f"✅ Processed {len(processed_emails)} emails with AI features")
+        
+        # Organize by priority
+        print("📋 Organizing by priority...")
+        high_priority = []
+        medium_priority = []
+        low_priority = []
+        
+        for email in processed_emails:
+            priority = email.get('priority_level', 'Low')
+            if priority == 'High':
+                high_priority.append(email)
+            elif priority == 'Medium':
+                medium_priority.append(email)
+            else:
+                low_priority.append(email)
+        
+        # Sort by AI confidence and priority score
+        high_priority.sort(key=lambda x: (
+            x.get('priority_score', 0),
+            x.get('reply_confidence', 0)
+        ), reverse=True)
+        
+        medium_priority.sort(key=lambda x: x.get('reply_confidence', 0), reverse=True)
+        low_priority.sort(key=lambda x: x.get('reply_confidence', 0), reverse=True)
         
         # Store email data for button actions
         print("💾 Storing email data for button actions...")
         for priority_group in ['high_priority', 'medium_priority', 'low_priority']:
-            for email in results.get(priority_group, []):
-                email_id = email.get('id', str(uuid.uuid4()))
+            email_list = {'high_priority': high_priority, 'medium_priority': medium_priority, 'low_priority': low_priority}[priority_group]
+            for email in email_list:
+                email_id = email.get('id')
                 digest_manager.store_email_data(user_id, email_id, email)
         
-        # Add user-specific metadata
-        results['user_id'] = user_id
-        results['user_preferences'] = user
-        results['generated_at'] = datetime.now().isoformat()
+        # Count Phase 1+2+3 features used
+        ai_enhanced_count = sum(1 for e in processed_emails if e.get('reply_method') == 'ai_enhanced')
+        safe_mode_count = sum(1 for e in processed_emails if e.get('reply_method') == 'safe_mode')
+        edge_case_count = sum(1 for e in processed_emails if e.get('edge_case_detected'))
         
-        print(f"✅ Digest generated successfully!")
-        print(f"📊 Summary: {results['processing_summary']['total_processed']} emails processed")
-        print(f"   🔥 High: {results['processing_summary']['high_priority_count']}")
-        print(f"   ⚡ Medium: {results['processing_summary']['medium_priority_count']}")
-        print(f"   💤 Low: {results['processing_summary']['low_priority_count']}")
+        # Generate processing summary
+        processing_summary = {
+            'total_processed': len(processed_emails),
+            'high_priority_count': len(high_priority),
+            'medium_priority_count': len(medium_priority),
+            'low_priority_count': len(low_priority),
+            'phase_features': {
+                'ai_enhanced_replies': ai_enhanced_count,
+                'safe_mode_replies': safe_mode_count,
+                'edge_cases_detected': edge_case_count,
+                'learning_enabled': True
+            }
+        }
+        
+        # Add user-specific metadata
+        results = {
+            'total_emails': len(processed_emails),
+            'high_priority': high_priority,
+            'medium_priority': medium_priority,
+            'low_priority': low_priority,
+            'processing_summary': processing_summary,
+            'user_id': user_id,
+            'user_preferences': user,
+            'generated_at': datetime.now().isoformat()
+        }
+        
+        print(f"✅ Digest generated successfully with Phase 1+2+3!")
+        print(f"📊 Summary: {len(processed_emails)} emails processed")
+        print(f"   🔥 High: {len(high_priority)}, ⚡ Medium: {len(medium_priority)}, 💤 Low: {len(low_priority)}")
+        print(f"   🤖 AI-enhanced: {ai_enhanced_count}, 🛡️ Safe mode: {safe_mode_count}, ⚠️ Edge cases: {edge_case_count}")
         
         return results
         
     except Exception as e:
         print(f"❌ Error generating digest for user {user_id}: {e}")
+        import traceback
+        traceback.print_exc()
         return {
             'total_emails': 0,
             'high_priority': [],
@@ -459,7 +563,7 @@ def email_details(user_id: str, email_id: str):
     """
     Handle 'More' button clicks - shows expanded AI insights
     
-    Displays full AI analysis, calendar events, thread status, tone analysis, etc.
+    Displays full AI analysis, thread status, tone analysis, etc.
     """
     
     print(f"🔍 Details request: User {user_id}, Email {email_id}")
@@ -489,7 +593,6 @@ def email_details(user_id: str, email_id: str):
             'priority_score': email_data.get('priority_score', 0),
             'priority_reasons': email_data.get('priority_reasons', []),
             'tone_analysis': email_data.get('tone_analysis', {}),
-            'calendar_events': email_data.get('calendar_events', {}),
             'thread_analysis': email_data.get('thread_analysis', {}),
             'contextual_insights': email_data.get('contextual_insights', []),
             'advanced_reply': email_data.get('advanced_reply', {}),
@@ -535,7 +638,6 @@ def edit_reply(user_id: str, email_id: str):
             'advanced_reply': email_data.get('advanced_reply', {}),
             'contextual_insights': email_data.get('contextual_insights', []),
             'tone_analysis': email_data.get('tone_analysis', {}),
-            'calendar_events': email_data.get('calendar_events', {}),
             'thread_analysis': email_data.get('thread_analysis', {}),
             'priority_reasons': email_data.get('priority_reasons', [])
         }
@@ -547,7 +649,6 @@ def edit_reply(user_id: str, email_id: str):
                              advanced_reply=edit_data['advanced_reply'],
                              contextual_insights=edit_data['contextual_insights'],
                              tone_analysis=edit_data['tone_analysis'],
-                             calendar_events=edit_data['calendar_events'],
                              thread_analysis=edit_data['thread_analysis'],
                              priority_reasons=edit_data['priority_reasons'])
         
@@ -562,6 +663,8 @@ def edit_reply(user_id: str, email_id: str):
 def send_edited_reply(user_id: str, email_id: str):
     """
     Handle sending of edited replies
+    
+    PHASE 3 INTEGRATION: Now tracks edits to improve future AI-generated replies
     """
     
     print(f"📤 Send edited reply: User {user_id}, Email {email_id}")
@@ -576,6 +679,24 @@ def send_edited_reply(user_id: str, email_id: str):
         email_data = digest_manager.get_email_data(user_id, email_id)
         if not email_data:
             abort(404, "Email data not found")
+        
+        # PHASE 3: Track the edit before sending (close the learning loop)
+        original_reply = email_data.get('advanced_reply', {}).get('primary_reply', '')
+        if original_reply:
+            print("🧠 Tracking reply edit for learning...")
+            try:
+                # Call track_edit endpoint to record the learning
+                track_result = track_reply_edit_internal(
+                    user_id=user_id,
+                    email_id=email_id,
+                    original_reply=original_reply,
+                    edited_reply=edited_reply,
+                    email_data=email_data
+                )
+                print(f"✅ Edit tracked: {track_result.get('edit_type', 'unknown')}, similarity: {track_result.get('similarity', 0):.2f}")
+            except Exception as track_error:
+                print(f"⚠️ Failed to track edit (non-critical): {track_error}")
+                # Don't fail the send operation if tracking fails
         
         # Send the edited reply (same logic as send_reply but with edited content)
         gmail_service = user_manager.get_user_gmail_service(user_id)
@@ -609,6 +730,128 @@ def send_edited_reply(user_id: str, email_id: str):
                              error=str(e),
                              action='send edited reply',
                              user_id=user_id), 500
+
+@app.route('/track_edit/<user_id>/<email_id>', methods=['POST'])
+def track_reply_edit(user_id: str, email_id: str):
+    """
+    PHASE 3: Track reply edits for learning system
+    
+    This endpoint records when users edit AI-generated replies and learns from the changes
+    to improve future suggestions. Returns learning insights and edit analysis.
+    
+    Expected POST data:
+    {
+        "original_reply": "AI-generated reply text",
+        "edited_reply": "User's edited version",
+        "accepted": true/false  # Whether user accepted (minor edit) or rejected (major rewrite)
+    }
+    """
+    
+    print(f"🧠 Track edit request: User {user_id}, Email {email_id}")
+    
+    try:
+        # Parse request data
+        data = request.get_json() or {}
+        original_reply = data.get('original_reply', '').strip()
+        edited_reply = data.get('edited_reply', '').strip()
+        
+        if not original_reply or not edited_reply:
+            return jsonify({
+                'success': False,
+                'error': 'Both original_reply and edited_reply are required'
+            }), 400
+        
+        # Get email data for context
+        email_data = digest_manager.get_email_data(user_id, email_id)
+        if not email_data:
+            return jsonify({
+                'success': False,
+                'error': 'Email data not found'
+            }), 404
+        
+        # Call internal tracking function
+        result = track_reply_edit_internal(
+            user_id=user_id,
+            email_id=email_id,
+            original_reply=original_reply,
+            edited_reply=edited_reply,
+            email_data=email_data
+        )
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        print(f"❌ Error tracking edit: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+def track_reply_edit_internal(user_id: str, email_id: str, original_reply: str, 
+                              edited_reply: str, email_data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Internal function to track reply edits (used by both track_reply_edit route and send_edited)
+    
+    PHASE 3: Integrates with SmartReplyGenerator learning system
+    """
+    
+    try:
+        # Load smart reply generator with learning tracker via singleton
+        processor = get_advanced_processor()
+        
+        # Get the smart reply generator (which has the learning tracker)
+        if not hasattr(processor, 'smart_reply_generator') or processor.smart_reply_generator is None:
+            print("⚠️ Smart reply generator not available, skipping edit tracking")
+            return {
+                'success': False,
+                'error': 'Smart reply generator not initialized'
+            }
+        
+        generator = processor.smart_reply_generator
+        
+        # Extract metadata from email for tracking
+        advanced_reply = email_data.get('advanced_reply', {})
+        reply_metadata = advanced_reply.get('reply_metadata', {})
+        
+        # Track the edit using Phase 3 learning tracker
+        print(f"📝 Tracking edit with smart reply generator...")
+        edit_result = generator.track_reply_edit(
+            email_data=email_data,
+            original_reply=original_reply,
+            edited_reply=edited_reply,
+            reply_metadata=reply_metadata
+        )
+        
+        # Get updated learning insights
+        insights = generator.get_learning_insights()
+        
+        # Return comprehensive tracking result
+        return {
+            'success': True,
+            'edit_tracked': True,
+            'edit_id': edit_result.get('edit_id'),
+            'similarity': edit_result.get('similarity', 0.0),
+            'edit_type': edit_result.get('edit_type', 'unknown'),
+            'changes_detected': edit_result.get('changes_detected', []),
+            'learning_insights': {
+                'total_edits_tracked': insights.get('total_edits', 0),
+                'acceptance_rate': insights.get('acceptance_rate', 0.0),
+                'learning_confidence': insights.get('learning_confidence', 0.0),
+                'average_similarity': insights.get('average_similarity', 0.0)
+            },
+            'message': f"Edit tracked successfully! Similarity: {edit_result.get('similarity', 0):.2%}"
+        }
+        
+    except Exception as e:
+        print(f"❌ Error in track_reply_edit_internal: {e}")
+        import traceback
+        traceback.print_exc()
+        return {
+            'success': False,
+            'error': str(e)
+        }
 
 @app.route('/archive/<user_id>/<email_id>')
 def archive_email(user_id: str, email_id: str):
@@ -1188,6 +1431,15 @@ if __name__ == '__main__':
     # Run Flask app
     port = int(os.environ.get('PORT', 5000))
     debug = False if os.environ.get('PORT') else True
+
+    # Optional: warm up AI models at startup to avoid first-request latency
+    try:
+        from ai_runtime import warmup
+        print("🧠 Warming up AI models (singleton init)...")
+        warmup()
+        print("✅ AI warmup complete")
+    except Exception as _warm_err:
+        print(f"⚠️ AI warmup skipped: {_warm_err}")
     
     print(f"🚀 Starting Flask on 0.0.0.0:{port}")
     app.run(debug=debug, host='0.0.0.0', port=port, threaded=True)

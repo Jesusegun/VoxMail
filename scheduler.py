@@ -31,15 +31,13 @@ from email.mime.multipart import MIMEMultipart
 from typing import Dict, List, Any, Optional, Tuple
 import pytz
 
-# Import your existing system components
+# Import lightweight components only (no AI models)
 try:
-    from complete_advanced_ai_processor import CompleteEmailAgent
-    from auth_test import authenticate_gmail
-    from email_templates import create_digest_email
+    import requests  # For calling web endpoints instead of loading AI
     print("✅ Successfully imported system components")
 except ImportError as e:
     print(f"❌ Error importing components: {e}")
-    print("🔧 Make sure all required files are in the correct location")
+    print("🔧 Make sure requests library is installed")
     sys.exit(1)
 
 # =============================================================================
@@ -259,7 +257,10 @@ class DigestScheduler:
     
     def generate_user_digest(self, user_id: str, user_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
-        Generate daily digest for a specific user using AI system
+        Generate daily digest for a specific user by calling web app endpoint
+        
+        MEMORY OPTIMIZATION: Instead of loading AI models here, we call the web app
+        which already has models loaded via singleton. This keeps memory usage low.
         
         Args:
             user_id: User identifier
@@ -269,115 +270,79 @@ class DigestScheduler:
             Dict with digest data or None if failed
         """
         
-        log_message(f"🤖 Generating digest for {user_data.get('email', user_id)}")
+        log_message(f"🤖 Requesting digest generation for {user_data.get('email', user_id)}")
         
         try:
-            # Initialize AI system
-            agent = CompleteEmailAgent(use_gmail_api=True)
+            # Call web app endpoint to generate digest (web app has AI models loaded)
+            endpoint = f"{BASE_URL}/send_digest/{user_id}"
             
-            # Check weekend preference
-            is_weekend = datetime.now().weekday() >= 5
-            weekend_pref = user_data.get('weekend_digests', 'urgent_only')
+            log_message(f"📡 Calling web endpoint: {endpoint}")
             
-            # Process emails
-            if is_weekend and weekend_pref == 'urgent_only':
-                log_message("📅 Weekend mode: Processing urgent emails only")
-                # You could add filtering here, but for now process all and let AI prioritize
+            response = requests.get(endpoint, timeout=300)  # 5 min timeout for AI processing
             
-            results = agent.process_daily_emails(
-                hours_back=24,
-                max_emails=None  # No limits
-            )
+            if response.status_code == 200:
+                result = response.json()
+                
+                if result.get('success'):
+                    total_emails = result.get('total_emails', 0)
+                    log_message(f"✅ Digest sent successfully: {total_emails} emails processed", "SUCCESS")
+                    
+                    # Record in our digest manager
+                    self.digest_manager.record_digest_sent(user_id, total_emails)
+                    
+                    return result
+                else:
+                    error_msg = result.get('error', 'Unknown error')
+                    log_message(f"Web endpoint returned error: {error_msg}", "ERROR")
+                    return None
+            else:
+                log_message(f"Web endpoint returned status {response.status_code}", "ERROR")
+                return None
             
-            # Store email data for button actions
-            for priority_group in ['high_priority', 'medium_priority', 'low_priority']:
-                for email in results.get(priority_group, []):
-                    email_id = email.get('id', str(time.time()))
-                    self.digest_manager.store_email_data(user_id, email_id, email)
-            
-            # Add user-specific metadata
-            results['user_id'] = user_id
-            results['user_preferences'] = user_data
-            results['generated_at'] = datetime.now().isoformat()
-            
-            summary = results.get('processing_summary', {})
-            total = summary.get('total_processed', 0)
-            high = summary.get('high_priority_count', 0)
-            medium = summary.get('medium_priority_count', 0)
-            low = summary.get('low_priority_count', 0)
-            
-            log_message(f"✅ Digest generated: {total} emails ({high} high, {medium} medium, {low} low)", "SUCCESS")
-            
-            return results
-            
+        except requests.exceptions.Timeout:
+            log_message(f"Timeout waiting for digest generation (> 5 min)", "ERROR")
+            return None
+        except requests.exceptions.ConnectionError:
+            log_message(f"Could not connect to web app at {BASE_URL}", "ERROR")
+            log_message("Make sure the web app is running!", "WARNING")
+            return None
         except Exception as e:
-            log_message(f"Error generating digest: {e}", "ERROR")
+            log_message(f"Error requesting digest: {e}", "ERROR")
             log_message(traceback.format_exc(), "ERROR")
             return None
     
     def send_digest_email(self, user_id: str, user_data: Dict[str, Any], digest_data: Dict[str, Any]) -> bool:
         """
-        Send digest email to user
+        Record digest stats - email already sent by web endpoint
+        
+        MEMORY OPTIMIZATION: The /send_digest/ endpoint already generated and sent
+        the email, so this function just records local stats for tracking.
         
         Args:
             user_id: User identifier
             user_data: User configuration
-            digest_data: Processed digest data from AI
+            digest_data: Already-sent digest data from web endpoint
         
         Returns:
-            bool: True if successful, False otherwise
+            bool: True if digest was successful (already sent by web endpoint)
         """
         
         user_email = user_data.get('email', 'unknown')
         
-        try:
-            log_message(f"📧 Sending digest email to {user_email}")
-            
-            # Generate HTML email
-            digest_html = create_digest_email(digest_data, BASE_URL)
-            
-            # Get Gmail service
-            gmail_service = authenticate_gmail()
-            if not gmail_service:
-                raise Exception("Failed to authenticate with Gmail")
-            
-            # Create email message
-            message = MIMEMultipart('alternative')
-            message['to'] = user_email
-            message['subject'] = f"📧 VoxMail Daily Digest - {datetime.now().strftime('%A, %B %d')}"
-            
-            html_part = MIMEText(digest_html, 'html')
-            message.attach(html_part)
-            
-            # Send via Gmail API
-            raw_message = base64.urlsafe_b64encode(message.as_bytes()).decode('utf-8')
-            send_result = gmail_service.users().messages().send(
-                userId='me',
-                body={'raw': raw_message}
-            ).execute()
-            
-            # Record success
-            total_emails = digest_data.get('processing_summary', {}).get('total_processed', 0)
-            self.digest_manager.record_digest_sent(user_id, total_emails, success=True)
-            
-            # Update stats
+        # Check if web endpoint reported success
+        if digest_data and digest_data.get('success'):
+            # Update local stats
             self.stats['total_digests_sent'] += 1
+            total_emails = digest_data.get('total_emails', 0)
             self.stats['total_emails_processed'] += total_emails
             
-            log_message(f"✅ Digest sent successfully to {user_email} ({total_emails} emails)", "SUCCESS")
+            log_message(f"✅ Digest confirmed for {user_email} ({total_emails} emails)", "SUCCESS")
             return True
-            
-        except Exception as e:
-            log_message(f"Error sending digest to {user_email}: {e}", "ERROR")
-            log_message(traceback.format_exc(), "ERROR")
-            
-            # Record failure
-            self.digest_manager.record_digest_sent(user_id, 0, success=False)
+        else:
+            # Digest generation or sending failed
             self.stats['failed_digests'] += 1
-            
-            # Send error notification to admin
-            self._send_error_notification(user_email, str(e))
-            
+            error_msg = digest_data.get('error', 'Unknown error') if digest_data else 'No data returned'
+            log_message(f"❌ Digest failed for {user_email}: {error_msg}", "ERROR")
             return False
     
     def _send_error_notification(self, user_email: str, error_message: str):
@@ -389,6 +354,13 @@ class DigestScheduler:
             error_message: Error details
         """
         try:
+            # Lazy import only when needed (errors are rare)
+            try:
+                from auth_test import authenticate_gmail
+            except ImportError:
+                log_message("Could not import authenticate_gmail for error notification", "WARNING")
+                return
+            
             gmail_service = authenticate_gmail()
             if not gmail_service:
                 return

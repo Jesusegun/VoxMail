@@ -33,22 +33,31 @@ ENV/
 .gitignore
 .gitattributes
 
-# Environment files (use Fly.io secrets instead)
+# Environment files (loaded via docker-compose env_file)
 .env
 .env.local
 .env.*.local
 
 # Test files (don't need in production)
 # Note: auth_test.py is needed for Gmail authentication, so it's NOT excluded
-test_scheduler.py
-test_ai_integration.py
+test_*.py
 tests/
 .pytest_cache/
+phase_1_to_4_deep_dive.py
+remove_emojis.py
+remove_all_emojis.py
 
 # Documentation (useful locally but not in production)
 docs/
 *.md
+!README.md
 LICENSE
+PHASE_1_4_VALIDATION_REPORT.md
+DEEP_DIVE_*.txt
+TRUNCATION_*.txt
+SYSTEM_ARCHITECTURE.txt
+START_HERE.md
+SMART_REPLY_PHASE2_SUMMARY.md
 
 # Log files (generated fresh in production)
 *.log

@@ -1,7 +1,7 @@
 # =============================================================================
 # AI PROCESSOR - ai_processor.py  
 # =============================================================================
-# This is the BRAIN of your AI Email Agent! 🧠
+# This is the BRAIN of your AI Email Agent! [BRAIN]
 # 
 # This module transforms raw email data into intelligent insights using:
 # - Advanced AI models for text summarization (BART/T5)
@@ -36,18 +36,18 @@ warnings.filterwarnings('ignore')  # Suppress model loading warnings
 try:
     # Hugging Face Transformers for AI models
     from transformers import pipeline, AutoTokenizer, AutoModelForSeq2SeqLM
-    print("✅ Transformers library loaded successfully")
+    print("[OK] Transformers library loaded successfully")
 except ImportError:
-    print("❌ Transformers not installed. Run: pip install transformers torch")
+    print("[ERROR] Transformers not installed. Run: pip install transformers torch")
     exit(1)
 
 try:
     # spaCy for advanced NLP
     import spacy
     from spacy import displacy
-    print("✅ spaCy library loaded successfully")
+    print("[OK] spaCy library loaded successfully")
 except ImportError:
-    print("❌ spaCy not installed. Run: pip install spacy")
+    print("[ERROR] spaCy not installed. Run: pip install spacy")
     exit(1)
 
 try:
@@ -57,9 +57,9 @@ try:
     from sklearn.metrics.pairwise import cosine_similarity
     import nltk
     from textblob import TextBlob
-    print("✅ Additional ML libraries loaded successfully")
+    print("[OK] Additional ML libraries loaded successfully")
 except ImportError:
-    print("❌ Some ML libraries missing. Check installation.")
+    print("[ERROR] Some ML libraries missing. Check installation.")
 
 # =============================================================================
 # AI PROCESSOR CONFIGURATION
@@ -99,7 +99,7 @@ class AIProcessorConfig:
 
 class EmailProcessor:
     """
-    The AI Brain of Your Email Agent 🧠
+    The AI Brain of Your Email Agent [BRAIN]
     
     This class contains all the artificial intelligence that transforms
     your email agent from a simple reader into an intelligent assistant.
@@ -122,7 +122,7 @@ class EmailProcessor:
             config: AI processor configuration (uses defaults if None)
         """
         
-        print("🧠 Initializing AI Email Processor...")
+        print("[BRAIN] Initializing AI Email Processor...")
         print("=====================================")
         
         # Use provided config or create default
@@ -146,8 +146,8 @@ class EmailProcessor:
         # Initialize learning system
         self._initialize_learning_system()
         
-        print("✅ AI Email Processor initialized successfully!")
-        print(f"🎯 Ready to process emails with intelligence level: EXPERT")
+        print("[OK] AI Email Processor initialized successfully!")
+        print(f"[TARGET] Ready to process emails with intelligence level: EXPERT")
     
     def _initialize_ai_models(self):
         """
@@ -157,14 +157,14 @@ class EmailProcessor:
         agent its cognitive capabilities.
         """
         
-        print("\n🤖 Loading AI Models...")
+        print("\n[AI] Loading AI Models...")
         print("========================")
         
         # =============================================================================
         # 1. SUMMARIZATION MODEL (THE COMPREHENSION BRAIN)
         # =============================================================================
         
-        print("📝 Loading text summarization model...")
+        print("[NOTE] Loading text summarization model...")
         try:
             # Load BART model for email summarization
             # BART is a state-of-the-art transformer model excellent at summarization
@@ -175,18 +175,18 @@ class EmailProcessor:
                 framework="pt",  # Use PyTorch
                 device=-1        # Use CPU (change to 0 for GPU)
             )
-            print(f"✅ Summarization model loaded: {self.config.summarization_model}")
+            print(f"[OK] Summarization model loaded: {self.config.summarization_model}")
             
         except Exception as e:
-            print(f"⚠️ Warning: Could not load summarization model: {e}")
-            print("🔄 Will use fallback extractive summarization")
+            print(f"[WARNING] Warning: Could not load summarization model: {e}")
+            print("[PROCESS] Will use fallback extractive summarization")
             self.models['summarizer'] = None
         
         # =============================================================================
         # 2. SENTIMENT ANALYSIS MODEL (THE EMOTION DETECTOR)
         # =============================================================================
         
-        print("😊 Loading sentiment analysis model...")
+        print("[EMOJI] Loading sentiment analysis model...")
         try:
             # Load sentiment analysis for detecting email tone and urgency
             self.models['sentiment'] = pipeline(
@@ -194,33 +194,33 @@ class EmailProcessor:
                 model="cardiffnlp/twitter-roberta-base-sentiment-latest",
                 device=-1
             )
-            print("✅ Sentiment analysis model loaded")
+            print("[OK] Sentiment analysis model loaded")
             
         except Exception as e:
-            print(f"⚠️ Warning: Could not load sentiment model: {e}")
-            print("🔄 Will use TextBlob fallback")
+            print(f"[WARNING] Warning: Could not load sentiment model: {e}")
+            print("[PROCESS] Will use TextBlob fallback")
             self.models['sentiment'] = None
         
         # =============================================================================
         # 3. NLP MODEL (THE LANGUAGE UNDERSTANDING BRAIN)
         # =============================================================================
         
-        print("🔤 Loading advanced NLP model...")
+        print("[EMOJI] Loading advanced NLP model...")
         try:
             # Load spaCy model for named entity recognition and language processing
             self.nlp_models['en'] = spacy.load("en_core_web_sm")
-            print("✅ spaCy English model loaded for entity extraction")
+            print("[OK] spaCy English model loaded for entity extraction")
             
         except Exception as e:
-            print(f"❌ Error loading spaCy model: {e}")
-            print("📋 Please run: python -m spacy download en_core_web_sm")
+            print(f"[ERROR] Error loading spaCy model: {e}")
+            print("[EMOJI] Please run: python -m spacy download en_core_web_sm")
             self.nlp_models['en'] = None
         
         # =============================================================================
         # 4. SIMILARITY MODEL (THE PATTERN RECOGNITION BRAIN)
         # =============================================================================
         
-        print("🎯 Loading similarity detection model...")
+        print("[TARGET] Loading similarity detection model...")
         try:
             # Initialize TF-IDF vectorizer for text similarity
             # This helps detect similar emails and patterns
@@ -229,13 +229,13 @@ class EmailProcessor:
                 stop_words='english',
                 ngram_range=(1, 2)  # Include both single words and pairs
             )
-            print("✅ Text similarity model initialized")
+            print("[OK] Text similarity model initialized")
             
         except Exception as e:
-            print(f"⚠️ Warning: Could not initialize similarity model: {e}")
+            print(f"[WARNING] Warning: Could not initialize similarity model: {e}")
             self.models['tfidf'] = None
         
-        print("\n🎉 AI Model loading complete!")
+        print("\n[PARTY] AI Model loading complete!")
     
     def _initialize_priority_patterns(self):
         """
@@ -245,7 +245,7 @@ class EmailProcessor:
         recognize important emails automatically.
         """
         
-        print("🎯 Initializing priority detection patterns...")
+        print("[TARGET] Initializing priority detection patterns...")
         
         # =============================================================================
         # URGENT KEYWORDS - IMMEDIATE ATTENTION REQUIRED
@@ -313,7 +313,7 @@ class EmailProcessor:
             'exclusive', 'perks', 'you can\'t miss', 'fx rate', 'daily rate'
         ]
         
-        print("✅ Priority patterns initialized")
+        print("[OK] Priority patterns initialized")
     
     def _initialize_learning_system(self):
         """
@@ -323,7 +323,7 @@ class EmailProcessor:
         and adapts to your communication style over time.
         """
         
-        print("🎓 Initializing AI learning system...")
+        print("[EMOJI] Initializing AI learning system...")
         
         # Create data directory for AI learning
         os.makedirs("ai_data", exist_ok=True)
@@ -344,7 +344,7 @@ class EmailProcessor:
         # Load existing learning data
         self._load_learning_data()
         
-        print("✅ Learning system initialized")
+        print("[OK] Learning system initialized")
     
     def summarize_email(self, email_data: Dict[str, Any]) -> str:
         """
@@ -364,7 +364,7 @@ class EmailProcessor:
         email_body = email_data.get('body', '')
         email_subject = email_data.get('subject', '')
         
-        print(f"📝 Summarizing email: '{email_subject[:50]}...'")
+        print(f"[NOTE] Summarizing email: '{email_subject[:50]}...'")
         
         # =============================================================================
         # PREPROCESSING: PREPARE TEXT FOR AI ANALYSIS
@@ -378,7 +378,7 @@ class EmailProcessor:
         
         # Check if text is too short for summarization
         if len(cleaned_text.split()) < 20:
-            print("📄 Email too short for AI summarization, returning cleaned version")
+            print("[EMOJI] Email too short for AI summarization, returning cleaned version")
             return cleaned_text[:200] + "..." if len(cleaned_text) > 200 else cleaned_text
         
         # =============================================================================
@@ -387,7 +387,7 @@ class EmailProcessor:
         
         try:
             if self.models['summarizer']:
-                print("🧠 Using BART neural network for summarization...")
+                print("[BRAIN] Using BART neural network for summarization...")
                 
                 # Use advanced AI model for summarization
                 summary_result = self.models['summarizer'](
@@ -398,18 +398,18 @@ class EmailProcessor:
                 )
                 
                 ai_summary = summary_result[0]['summary_text']
-                print(f"✅ AI summary generated: {len(ai_summary)} characters")
+                print(f"[OK] AI summary generated: {len(ai_summary)} characters")
                 
                 return ai_summary
             
             else:
                 # Fallback to extractive summarization
-                print("🔄 Using fallback extractive summarization...")
+                print("[PROCESS] Using fallback extractive summarization...")
                 return self._extractive_summarization(cleaned_text)
                 
         except Exception as e:
-            print(f"⚠️ AI summarization failed: {e}")
-            print("🔄 Falling back to extractive method...")
+            print(f"[WARNING] AI summarization failed: {e}")
+            print("[PROCESS] Falling back to extractive method...")
             return self._extractive_summarization(cleaned_text)
     
     def calculate_priority(self, email_data: Dict[str, Any]) -> Tuple[str, int, List[str]]:
@@ -426,7 +426,7 @@ class EmailProcessor:
             Tuple[str, int, List[str]]: (priority_level, score, reasons)
         """
         
-        print(f"🎯 Analyzing priority for email from: {email_data.get('sender_name', 'Unknown')}")
+        print(f"[TARGET] Analyzing priority for email from: {email_data.get('sender_name', 'Unknown')}")
         
         priority_score = 0
         priority_reasons = []
@@ -515,8 +515,8 @@ class EmailProcessor:
         else:
             priority_level = "Low"
         
-        print(f"🎯 Priority calculated: {priority_level} (score: {priority_score})")
-        print(f"📋 Reasons: {', '.join(priority_reasons) if priority_reasons else 'Standard email'}")
+        print(f"[TARGET] Priority calculated: {priority_level} (score: {priority_score})")
+        print(f"[EMOJI] Reasons: {', '.join(priority_reasons) if priority_reasons else 'Standard email'}")
         
         return priority_level, priority_score, priority_reasons
     
@@ -534,7 +534,7 @@ class EmailProcessor:
             Dict: Extracted entities and dates
         """
         
-        print("🔍 Extracting entities and dates with AI...")
+        print("[SEARCH] Extracting entities and dates with AI...")
         
         entities = {
             'people': [],
@@ -555,7 +555,7 @@ class EmailProcessor:
         
         try:
             if self.nlp_models.get('en'):
-                print("🧠 Using spaCy AI for entity recognition...")
+                print("[BRAIN] Using spaCy AI for entity recognition...")
                 
                 # Process text with spaCy's neural network
                 doc = self.nlp_models['en'](email_text[:1000])  # Limit text length
@@ -579,10 +579,10 @@ class EmailProcessor:
                     elif entity_label in ['MONEY']:
                         entities['money'].append(entity_text)
                 
-                print(f"✅ AI extracted {sum(len(v) for v in entities.values())} entities")
+                print(f"[OK] AI extracted {sum(len(v) for v in entities.values())} entities")
                 
         except Exception as e:
-            print(f"⚠️ AI entity extraction failed: {e}")
+            print(f"[WARNING] AI entity extraction failed: {e}")
         
         # =============================================================================
         # PATTERN-BASED DEADLINE AND MEETING EXTRACTION
@@ -639,7 +639,7 @@ class EmailProcessor:
             str: Generated draft reply
         """
         
-        print(f"✍️ Generating draft reply for: {email_data.get('subject', 'No Subject')}")
+        print(f"[EMOJI] Generating draft reply for: {email_data.get('subject', 'No Subject')}")
         
         # Extract context for reply generation
         subject = email_data.get('subject', '').lower()
@@ -676,7 +676,7 @@ class EmailProcessor:
             # Default professional reply
             draft = self._generate_default_reply(sender_name, priority_level)
         
-        print(f"✅ Draft reply generated: {len(draft)} characters")
+        print(f"[OK] Draft reply generated: {len(draft)} characters")
         return draft
     
     def learn_from_interaction(self, email_data: Dict[str, Any], user_action: str):
@@ -691,7 +691,7 @@ class EmailProcessor:
             user_action: Action taken by user ('read', 'reply', 'delete', 'archive', etc.)
         """
         
-        print(f"🎓 Learning from user action: {user_action}")
+        print(f"[EMOJI] Learning from user action: {user_action}")
         
         sender_email = email_data.get('sender_email', '').lower()
         priority_level = email_data.get('priority_level', 'Medium')
@@ -714,12 +714,12 @@ class EmailProcessor:
         
         if user_action == 'reply' and priority_level == 'Low':
             # We underestimated priority - learn from this
-            print("📚 Learning: Low priority email was actually important")
+            print("[EMOJI] Learning: Low priority email was actually important")
             self._adjust_priority_weights(email_data, increase=True)
             
         elif user_action == 'delete' and priority_level == 'High':
             # We overestimated priority - learn from this  
-            print("📚 Learning: High priority email wasn't actually important")
+            print("[EMOJI] Learning: High priority email wasn't actually important")
             self._adjust_priority_weights(email_data, increase=False)
         
         # =============================================================================
@@ -735,7 +735,7 @@ class EmailProcessor:
         
         # Save learning data
         self._save_learning_data()
-        print("✅ Learning data updated")
+        print("[OK] Learning data updated")
     
     def process_email(self, email_data: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -751,7 +751,7 @@ class EmailProcessor:
             Dict: Processed email with AI-generated insights
         """
         
-        print(f"\n🧠 AI PROCESSING EMAIL: {email_data.get('subject', 'No Subject')}")
+        print(f"\n[BRAIN] AI PROCESSING EMAIL: {email_data.get('subject', 'No Subject')}")
         print("=" * 60)
         
         # Start with the original email data
@@ -762,14 +762,14 @@ class EmailProcessor:
             # STEP 1: AI SUMMARIZATION
             # =============================================================================
             
-            print("📝 Step 1: AI Summarization...")
+            print("[NOTE] Step 1: AI Summarization...")
             processed_email['ai_summary'] = self.summarize_email(email_data)
             
             # =============================================================================
             # STEP 2: PRIORITY ANALYSIS
             # =============================================================================
             
-            print("🎯 Step 2: Priority Analysis...")
+            print("[TARGET] Step 2: Priority Analysis...")
             priority_level, priority_score, reasons = self.calculate_priority(email_data)
             processed_email['priority_level'] = priority_level
             processed_email['priority_score'] = priority_score  
@@ -779,7 +779,7 @@ class EmailProcessor:
             # STEP 3: ENTITY EXTRACTION
             # =============================================================================
             
-            print("🔍 Step 3: Entity Extraction...")
+            print("[SEARCH] Step 3: Entity Extraction...")
             extracted_entities = self.extract_entities_and_dates(email_data)
             processed_email['extracted_entities'] = extracted_entities
             
@@ -788,7 +788,7 @@ class EmailProcessor:
             # =============================================================================
             
             if priority_level in ['High', 'Medium']:
-                print("✍️ Step 4: Draft Reply Generation...")
+                print("[EMOJI] Step 4: Draft Reply Generation...")
                 processed_email['draft_reply'] = self.generate_draft_reply(email_data)
             else:
                 processed_email['draft_reply'] = None
@@ -797,7 +797,7 @@ class EmailProcessor:
             # STEP 5: ACTIONABLE INSIGHTS
             # =============================================================================
             
-            print("💡 Step 5: Generating Insights...")
+            print("[IDEA] Step 5: Generating Insights...")
             processed_email['actionable_insights'] = self._generate_insights(processed_email)
             
             # =============================================================================
@@ -813,13 +813,13 @@ class EmailProcessor:
             processed_email['ai_processed_at'] = datetime.now().isoformat()
             processed_email['ai_version'] = "1.0"
             
-            print("✅ AI processing completed successfully!")
-            print(f"🎯 Result: {priority_level} priority, {len(processed_email['ai_summary'])} char summary")
+            print("[OK] AI processing completed successfully!")
+            print(f"[TARGET] Result: {priority_level} priority, {len(processed_email['ai_summary'])} char summary")
             
             return processed_email
             
         except Exception as e:
-            print(f"❌ AI processing failed: {e}")
+            print(f"[ERROR] AI processing failed: {e}")
             # Return original data with error info
             processed_email['ai_error'] = str(e)
             processed_email['ai_processed'] = False
@@ -844,7 +844,7 @@ class EmailProcessor:
         is_html = any(indicator in text.lower() for indicator in html_indicators)
         
         if is_html:
-            print("🔧 Detected HTML content - extracting readable text...")
+            print("[EMOJI] Detected HTML content - extracting readable text...")
             cleaned = self._extract_text_from_html(text)
         else:
             cleaned = text
@@ -914,16 +914,16 @@ class EmailProcessor:
                 chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
                 text = ' '.join(chunk for chunk in chunks if chunk)
                 
-                print("✅ HTML parsed successfully with BeautifulSoup")
+                print("[OK] HTML parsed successfully with BeautifulSoup")
                 return text
                 
             except ImportError:
-                print("⚠️ BeautifulSoup not available, using regex fallback")
+                print("[WARNING] BeautifulSoup not available, using regex fallback")
                 # Fallback to regex-based HTML stripping
                 return self._strip_html_regex(html_content)
                 
         except Exception as e:
-            print(f"⚠️ HTML parsing failed: {e}, using regex fallback")
+            print(f"[WARNING] HTML parsing failed: {e}, using regex fallback")
             return self._strip_html_regex(html_content)
     
     def _strip_html_regex(self, html_content: str) -> str:
@@ -1247,23 +1247,23 @@ class EmailProcessor:
         
         # Priority-based insights
         if processed_email['priority_level'] == 'High':
-            insights.append("⚡ Requires immediate attention")
+            insights.append("[EMOJI] Requires immediate attention")
         
         # Entity-based insights
         entities = processed_email.get('extracted_entities', {})
         if entities.get('deadlines'):
-            insights.append(f"📅 Contains deadline: {entities['deadlines'][0]}")
+            insights.append(f"[EMOJI] Contains deadline: {entities['deadlines'][0]}")
         
         if entities.get('meetings'):
-            insights.append(f"🤝 Meeting mentioned: {entities['meetings'][0]}")
+            insights.append(f"[EMOJI] Meeting mentioned: {entities['meetings'][0]}")
         
         # Attachment insights
         if processed_email.get('has_attachments'):
-            insights.append(f"📎 {processed_email['attachment_count']} attachment(s) to review")
+            insights.append(f"[EMOJI] {processed_email['attachment_count']} attachment(s) to review")
         
         # Thread insights
         if processed_email.get('is_thread') and processed_email.get('thread_length', 1) > 3:
-            insights.append("🧵 Part of ongoing conversation thread")
+            insights.append("[THREAD] Part of ongoing conversation thread")
         
         return insights
     
@@ -1337,7 +1337,7 @@ class EmailProcessor:
         # This would implement weight adjustment logic for priority learning
         # For now, we'll just log the learning opportunity
         action = "increase" if increase else "decrease"
-        print(f"🎓 Learning opportunity: {action} priority weight for similar emails")
+        print(f"[EMOJI] Learning opportunity: {action} priority weight for similar emails")
     
     def _calculate_avg_response_time(self, sender_email: str) -> float:
         """Calculate average response time for a sender"""
@@ -1354,11 +1354,11 @@ def test_ai_processor():
     """
     
     print("=" * 70)
-    print("🧪 AI EMAIL PROCESSOR TEST")
+    print("[TEST] AI EMAIL PROCESSOR TEST")
     print("=" * 70)
     
     # Create AI processor instance
-    print("🧠 Initializing AI Processor...")
+    print("[BRAIN] Initializing AI Processor...")
     processor = EmailProcessor()
     
     # Test with sample email data
@@ -1388,7 +1388,7 @@ Senior Project Manager''',
         'is_thread': False
     }
     
-    print("\n📧 Processing sample email...")
+    print("\n[EMAIL] Processing sample email...")
     print(f"   Subject: {sample_email['subject']}")
     print(f"   From: {sample_email['sender_name']}")
     
@@ -1396,40 +1396,40 @@ Senior Project Manager''',
     processed_email = processor.process_email(sample_email)
     
     # Display results
-    print("\n🎯 AI PROCESSING RESULTS:")
+    print("\n[TARGET] AI PROCESSING RESULTS:")
     print("=" * 50)
     
-    print(f"\n📝 AI Summary:")
+    print(f"\n[NOTE] AI Summary:")
     print(f"   {processed_email.get('ai_summary', 'No summary generated')}")
     
-    print(f"\n🎯 Priority Analysis:")
+    print(f"\n[TARGET] Priority Analysis:")
     print(f"   Level: {processed_email.get('priority_level', 'Unknown')}")
     print(f"   Score: {processed_email.get('priority_score', 0)}")
     print(f"   Reasons: {', '.join(processed_email.get('priority_reasons', []))}")
     
-    print(f"\n🔍 Extracted Entities:")
+    print(f"\n[SEARCH] Extracted Entities:")
     entities = processed_email.get('extracted_entities', {})
     for entity_type, items in entities.items():
         if items:
             print(f"   {entity_type.capitalize()}: {', '.join(items[:3])}")  # Show first 3
     
     if processed_email.get('draft_reply'):
-        print(f"\n✍️ Draft Reply:")
+        print(f"\n[EMOJI] Draft Reply:")
         print(f"   {processed_email['draft_reply'][:100]}...")
     
-    print(f"\n💡 Actionable Insights:")
+    print(f"\n[IDEA] Actionable Insights:")
     insights = processed_email.get('actionable_insights', [])
     for insight in insights:
         print(f"   {insight}")
     
-    print(f"\n📊 AI Confidence: {processed_email.get('ai_confidence', 0):.1%}")
+    print(f"\n[INFO] AI Confidence: {processed_email.get('ai_confidence', 0):.1%}")
     
     # Test learning simulation
-    print(f"\n🎓 Testing Learning System...")
+    print(f"\n[EMOJI] Testing Learning System...")
     processor.learn_from_interaction(processed_email, 'reply')
     
-    print("\n✅ AI Processor test completed successfully!")
-    print("🎉 Your AI Email Agent brain is working perfectly!")
+    print("\n[OK] AI Processor test completed successfully!")
+    print("[PARTY] Your AI Email Agent brain is working perfectly!")
 
 if __name__ == '__main__':
     """Run tests when file is executed directly"""

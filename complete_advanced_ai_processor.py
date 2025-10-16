@@ -5,7 +5,6 @@
 # 
 # This is the COMPLETE file with all advanced features:
 # - Advanced reply generation with tone matching
-# - Calendar event detection and extraction
 # - Email thread intelligence and conversation tracking
 # - Smart template system for consistent responses
 # - Enhanced learning with behavioral pattern recognition
@@ -25,10 +24,18 @@ warnings.filterwarnings('ignore')
 # Import base AI processor from Day 2 Morning
 try:
     from ai_processor import EmailProcessor, AIProcessorConfig
-    print("✅ Base AI Processor imported from Day 2 Morning")
+    print("[OK] Base AI Processor imported from Day 2 Morning")
 except ImportError:
-    print("❌ Cannot import base AI processor. Make sure ai_processor.py exists from Day 2 Morning")
+    print("[ERROR] Cannot import base AI processor. Make sure ai_processor.py exists from Day 2 Morning")
     exit(1)
+
+# Import Smart Reply Generator (Phase 1 + 2)
+try:
+    from smart_reply_generator import SmartReplyGenerator, SmartReplyConfig
+    print("[OK] Smart Reply Generator (Phase 1+2) imported")
+except ImportError:
+    print("[ERROR] Cannot import smart_reply_generator. Make sure smart_reply_generator.py exists")
+    SmartReplyGenerator = None
 
 # Additional imports for advanced features
 try:
@@ -38,9 +45,9 @@ try:
     from sklearn.feature_extraction.text import TfidfVectorizer
     from sklearn.metrics.pairwise import cosine_similarity
     from textblob import TextBlob
-    print("✅ Advanced AI libraries loaded")
+    print("[OK] Advanced AI libraries loaded")
 except ImportError as e:
-    print(f"❌ Advanced AI libraries missing: {e}")
+    print(f"[ERROR] Advanced AI libraries missing: {e}")
 
 # =============================================================================
 # ADVANCED AI CONFIGURATION
@@ -54,11 +61,6 @@ class AdvancedAIConfig(AIProcessorConfig):
     tone_analysis_enabled: bool = True
     context_window_size: int = 3
     reply_template_matching: bool = True
-    
-    # Calendar integration settings
-    calendar_extraction_enabled: bool = True
-    meeting_detection_threshold: float = 0.7
-    deadline_lookahead_days: int = 30
     
     # Thread intelligence settings
     thread_analysis_enabled: bool = True
@@ -80,7 +82,7 @@ class AdvancedEmailProcessor(EmailProcessor):
         base_config = config or AdvancedAIConfig()
         super().__init__(base_config)
         
-        print("🚀 Initializing Advanced AI Email Processor...")
+        print("[INIT] Initializing Advanced AI Email Processor...")
         
         # Store advanced config
         self.advanced_config = base_config
@@ -88,16 +90,18 @@ class AdvancedEmailProcessor(EmailProcessor):
         # Initialize advanced components
         self._initialize_advanced_systems()
         self._initialize_template_system()
-        self._initialize_calendar_system()
         self._initialize_thread_system()
         self._initialize_behavioral_learning()
         
-        print("✅ Advanced AI Email Processor ready!")
+        # Initialize Smart Reply Generator (Phase 1 + 2)
+        self._initialize_smart_reply_generator()
+        
+        print("[OK] Advanced AI Email Processor ready!")
     
     def _initialize_advanced_systems(self):
         """Initialize advanced AI systems and models"""
         
-        print("🧠 Loading advanced AI models...")
+        print("[BRAIN] Loading advanced AI models...")
         
         try:
             # Load advanced sentiment analysis for tone detection
@@ -106,9 +110,9 @@ class AdvancedEmailProcessor(EmailProcessor):
                 model="j-hartmann/emotion-english-distilroberta-base",
                 device=-1
             )
-            print("✅ Advanced emotion detection model loaded")
+            print("[OK] Advanced emotion detection model loaded")
         except:
-            print("⚠️ Advanced emotion model not available, using base sentiment")
+            print("[WARNING] Advanced emotion model not available, using base sentiment")
         
         try:
             # Initialize text similarity for template matching
@@ -118,20 +122,49 @@ class AdvancedEmailProcessor(EmailProcessor):
                 ngram_range=(1, 3),
                 lowercase=True
             )
-            print("✅ Advanced text similarity system initialized")
+            print("[OK] Advanced text similarity system initialized")
         except:
-            print("⚠️ Advanced similarity system failed to initialize")
+            print("[WARNING] Advanced similarity system failed to initialize")
         
         # Conversation context analyzer
         self.conversation_contexts = {}
         self.user_communication_patterns = {}
         
-        print("✅ Advanced systems initialized")
+        print("[OK] Advanced systems initialized")
+    
+    def _initialize_smart_reply_generator(self):
+        """Initialize Smart Reply Generator (Phase 1 + 2)"""
+        
+        print("[AI] Initializing Smart Reply Generator (Phase 1+2)...")
+        
+        if SmartReplyGenerator is None:
+            print("[WARNING] Smart Reply Generator not available, using legacy templates")
+            self.smart_reply_generator = None
+            return
+        
+        try:
+            # Create configuration for smart reply generator
+            smart_config = SmartReplyConfig(
+                min_confidence_threshold=0.60,
+                high_confidence_threshold=0.80,
+                detect_sensitive_topics=True,
+                use_safe_mode_for_sensitive=True,
+                track_user_edits=True,
+                adapt_to_preferences=True
+            )
+            
+            # Initialize the generator
+            self.smart_reply_generator = SmartReplyGenerator(smart_config)
+            print("[OK] Smart Reply Generator ready (BART + spaCy + Safety)")
+            
+        except Exception as e:
+            print(f"[WARNING] Smart Reply Generator initialization failed: {e}")
+            self.smart_reply_generator = None
     
     def _initialize_template_system(self):
         """Initialize intelligent template system for replies"""
         
-        print("📝 Initializing smart template system...")
+        print("[NOTE] Initializing smart template system...")
         
         # Contextual reply templates
         self.reply_templates = {
@@ -185,54 +218,12 @@ class AdvancedEmailProcessor(EmailProcessor):
             'casual': ['hi', 'hey', 'thanks!', 'awesome', 'sounds good', 'no problem']
         }
         
-        print("✅ Smart template system ready")
-    
-    def _initialize_calendar_system(self):
-        """Initialize calendar event detection and extraction"""
-        
-        print("📅 Initializing calendar intelligence...")
-        
-        # Meeting detection patterns
-        self.meeting_patterns = [
-            r'meeting\s+(on|at|scheduled for)\s+([^.]+)',
-            r'call\s+(on|at|scheduled for)\s+([^.]+)',
-            r'appointment\s+(on|at|for)\s+([^.]+)',
-            r'conference\s+(on|at)\s+([^.]+)',
-            r'let\'s\s+(meet|discuss|talk)\s+(on|at|about)\s+([^.]+)',
-            r'available\s+(for\s+)?(a\s+)?(meeting|call)\s+(on|at)\s+([^.]+)'
-        ]
-        
-        # Time pattern recognition
-        self.time_patterns = [
-            r'(\d{1,2}):(\d{2})\s*(am|pm)',
-            r'(\d{1,2})\s*(am|pm)',
-            r'at\s+(\d{1,2})',
-            r'(\d{1,2}):(\d{2})'
-        ]
-        
-        # Date pattern recognition
-        self.date_patterns = [
-            r'(monday|tuesday|wednesday|thursday|friday|saturday|sunday)',
-            r'(january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2}',
-            r'\d{1,2}/\d{1,2}(/\d{4})?',
-            r'\d{1,2}-\d{1,2}(-\d{4})?',
-            r'(today|tomorrow|next week|this week|next month)'
-        ]
-        
-        # Deadline detection patterns
-        self.deadline_patterns = [
-            r'deadline\s+(is|of|by)\s+([^.]+)',
-            r'due\s+(by|on|at)\s+([^.]+)',
-            r'needs?\s+to\s+be\s+(done|completed|finished)\s+(by|before)\s+([^.]+)',
-            r'must\s+be\s+(submitted|completed|ready)\s+(by|before)\s+([^.]+)'
-        ]
-        
-        print("✅ Calendar intelligence system ready")
+        print("[OK] Smart template system ready")
     
     def _initialize_thread_system(self):
         """Initialize email thread analysis and conversation tracking"""
         
-        print("🧵 Initializing thread intelligence...")
+        print("[THREAD] Initializing thread intelligence...")
         
         # Thread conversation storage
         self.active_threads = {}
@@ -246,12 +237,12 @@ class AdvancedEmailProcessor(EmailProcessor):
             'problem_solving': ['issue_report', 'investigation', 'solution', 'verification']
         }
         
-        print("✅ Thread intelligence system ready")
+        print("[OK] Thread intelligence system ready")
     
     def _initialize_behavioral_learning(self):
         """Initialize behavioral learning and adaptation system"""
         
-        print("🎓 Initializing behavioral learning...")
+        print("[EMOJI] Initializing behavioral learning...")
         
         # User behavior patterns
         self.user_patterns = {
@@ -266,7 +257,7 @@ class AdvancedEmailProcessor(EmailProcessor):
         self.behavior_data_file = "ai_data/behavioral_patterns.json"
         self._load_behavioral_data()
         
-        print("✅ Behavioral learning system ready")
+        print("[OK] Behavioral learning system ready")
     
     # =============================================================================
     # ADVANCED EMAIL PROCESSING METHODS
@@ -276,7 +267,7 @@ class AdvancedEmailProcessor(EmailProcessor):
                              thread_context: Optional[List[Dict]] = None) -> Dict[str, Any]:
         """Advanced email processing with contextual awareness"""
         
-        print(f"\n🚀 ADVANCED AI PROCESSING: {email_data.get('subject', 'No Subject')}")
+        print(f"\n[INIT] ADVANCED AI PROCESSING: {email_data.get('subject', 'No Subject')}")
         
         # Start with base processing
         processed_email = super().process_email(email_data)
@@ -284,24 +275,18 @@ class AdvancedEmailProcessor(EmailProcessor):
         try:
             # Thread context analysis
             if self.advanced_config.thread_analysis_enabled:
-                print("🧵 Analyzing thread context...")
+                print("[THREAD] Analyzing thread context...")
                 thread_analysis = self.analyze_thread_context(email_data, thread_context)
                 processed_email['thread_analysis'] = thread_analysis
             
             # Advanced tone analysis
             if self.advanced_config.tone_analysis_enabled:
-                print("🎭 Advanced tone analysis...")
+                print("[EMOJI] Advanced tone analysis...")
                 tone_analysis = self.analyze_communication_tone(email_data, processed_email)
                 processed_email['tone_analysis'] = tone_analysis
             
-            # Calendar event extraction
-            if self.advanced_config.calendar_extraction_enabled:
-                print("📅 Calendar intelligence extraction...")
-                calendar_events = self.extract_calendar_events(email_data)
-                processed_email['calendar_events'] = calendar_events
-            
             # Advanced reply generation
-            print("✍️ Advanced reply generation...")
+            print("[EMOJI] Advanced reply generation...")
             advanced_reply = self.generate_advanced_reply(
                 email_data, 
                 processed_email, 
@@ -310,7 +295,7 @@ class AdvancedEmailProcessor(EmailProcessor):
             processed_email['advanced_reply'] = advanced_reply
             
             # Contextual insights generation
-            print("💡 Generating contextual insights...")
+            print("[IDEA] Generating contextual insights...")
             contextual_insights = self.generate_contextual_insights(
                 processed_email, 
                 thread_context
@@ -319,7 +304,7 @@ class AdvancedEmailProcessor(EmailProcessor):
             
             # Behavioral learning update
             if self.advanced_config.behavioral_learning_enabled:
-                print("🎓 Updating behavioral learning...")
+                print("[EMOJI] Updating behavioral learning...")
                 self.update_behavioral_patterns(email_data, processed_email)
             
             # Advanced metadata
@@ -328,17 +313,16 @@ class AdvancedEmailProcessor(EmailProcessor):
                 'advanced_features_enabled': {
                     'thread_analysis': self.advanced_config.thread_analysis_enabled,
                     'tone_analysis': self.advanced_config.tone_analysis_enabled,
-                    'calendar_extraction': self.advanced_config.calendar_extraction_enabled,
                     'behavioral_learning': self.advanced_config.behavioral_learning_enabled
                 },
                 'processing_timestamp': datetime.now().isoformat()
             })
             
-            print("✅ Advanced AI processing completed successfully!")
+            print("[OK] Advanced AI processing completed successfully!")
             return processed_email
             
         except Exception as e:
-            print(f"❌ Advanced processing failed: {e}")
+            print(f"[ERROR] Advanced processing failed: {e}")
             processed_email['advanced_processing_error'] = str(e)
             return processed_email
     
@@ -386,7 +370,7 @@ class AdvancedEmailProcessor(EmailProcessor):
             )
             
         except Exception as e:
-            print(f"⚠️ Thread analysis failed: {e}")
+            print(f"[WARNING] Thread analysis failed: {e}")
         
         return thread_analysis
     
@@ -470,78 +454,17 @@ class AdvancedEmailProcessor(EmailProcessor):
                 tone_analysis['relationship_type'] = 'professional'
             
         except Exception as e:
-            print(f"⚠️ Tone analysis failed: {e}")
+            print(f"[WARNING] Tone analysis failed: {e}")
         
         return tone_analysis
-    
-    def extract_calendar_events(self, email_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Extract calendar events, meetings, and deadlines from email content"""
-        
-        email_text = f"{email_data.get('subject', '')} {email_data.get('body', '')}"
-        
-        calendar_events = {
-            'meetings': [],
-            'deadlines': [],
-            'appointments': [],
-            'time_mentions': [],
-            'date_mentions': [],
-            'calendar_confidence': 0.0
-        }
-        
-        try:
-            # Meeting detection
-            for pattern in self.meeting_patterns:
-                matches = re.finditer(pattern, email_text.lower())
-                for match in matches:
-                    meeting_info = {
-                        'type': 'meeting',
-                        'raw_text': match.group(0),
-                        'details': match.groups()[-1] if match.groups() else '',
-                        'confidence': 0.8
-                    }
-                    calendar_events['meetings'].append(meeting_info)
-            
-            # Deadline extraction
-            for pattern in self.deadline_patterns:
-                matches = re.finditer(pattern, email_text.lower())
-                for match in matches:
-                    deadline_info = {
-                        'type': 'deadline',
-                        'raw_text': match.group(0),
-                        'deadline': match.groups()[-1] if match.groups() else '',
-                        'confidence': 0.9
-                    }
-                    calendar_events['deadlines'].append(deadline_info)
-            
-            # Time and date extraction
-            for pattern in self.time_patterns:
-                matches = re.finditer(pattern, email_text.lower())
-                for match in matches:
-                    calendar_events['time_mentions'].append(match.group(0))
-            
-            for pattern in self.date_patterns:
-                matches = re.finditer(pattern, email_text.lower())
-                for match in matches:
-                    calendar_events['date_mentions'].append(match.group(0))
-            
-            # Calendar confidence calculation
-            total_events = (len(calendar_events['meetings']) + 
-                          len(calendar_events['deadlines']) + 
-                          len(calendar_events['time_mentions']) + 
-                          len(calendar_events['date_mentions']))
-            
-            if total_events > 0:
-                calendar_events['calendar_confidence'] = min(total_events * 0.2, 1.0)
-            
-        except Exception as e:
-            print(f"⚠️ Calendar extraction failed: {e}")
-        
-        return calendar_events
     
     def generate_advanced_reply(self, email_data: Dict[str, Any], 
                               processed_data: Dict[str, Any],
                               thread_context: Optional[List[Dict]] = None) -> Dict[str, Any]:
-        """Generate advanced, contextually aware draft reply"""
+        """
+        Generate advanced, contextually aware draft reply using Smart Reply Generator
+        (Phase 1 + 2 Integration)
+        """
         
         reply_data = {
             'primary_reply': '',
@@ -550,7 +473,12 @@ class AdvancedEmailProcessor(EmailProcessor):
                 'tone_matched': False,
                 'context_aware': False,
                 'template_used': '',
-                'personalization_level': 'standard'
+                'personalization_level': 'standard',
+                'generation_method': 'legacy',  # legacy, ai_enhanced, safe_mode, no_reply
+                'confidence_score': 0.0,
+                'confidence_level': 'low',
+                'sensitive_detected': False,
+                'requires_manual_review': False
             }
         }
         
@@ -559,6 +487,58 @@ class AdvancedEmailProcessor(EmailProcessor):
             tone_analysis = processed_data.get('tone_analysis', {})
             detected_tone = tone_analysis.get('detected_tone', 'business')
             
+            # === PHASE 1+2: USE SMART REPLY GENERATOR ===
+            if self.smart_reply_generator is not None:
+                try:
+                    # Prepare email data for smart generator
+                    smart_email_data = {
+                        'subject': email_data.get('subject', ''),
+                        'body': email_data.get('body', ''),
+                        'sender': email_data.get('sender', ''),
+                        'sender_name': email_data.get('sender_name', 'there')
+                    }
+                    
+                    # Generate smart reply
+                    smart_result = self.smart_reply_generator.generate_smart_reply(
+                        email_data=smart_email_data,
+                        detected_tone=detected_tone
+                    )
+                    
+                    # Extract results
+                    reply_data['primary_reply'] = smart_result['reply_text']
+                    reply_data['reply_metadata'].update({
+                        'tone_matched': True,
+                        'context_aware': True,
+                        'generation_method': smart_result['generation_method'],
+                        'confidence_score': smart_result['confidence_score'],
+                        'confidence_level': smart_result['confidence_level'],
+                        'personalization_level': 'high' if smart_result['confidence_score'] >= 0.80 else 'medium'
+                    })
+                    
+                    # Add safety metadata
+                    if 'sensitive_analysis' in smart_result['metadata']:
+                        sa = smart_result['metadata']['sensitive_analysis']
+                        reply_data['reply_metadata'].update({
+                            'sensitive_detected': sa['is_sensitive'],
+                            'sensitive_categories': sa.get('categories', []),
+                            'risk_level': sa.get('risk_level', 'low'),
+                            'requires_manual_review': sa.get('requires_manual_review', False)
+                        })
+                    
+                    # Add edge case metadata
+                    if 'edge_case_analysis' in smart_result['metadata']:
+                        eca = smart_result['metadata']['edge_case_analysis']
+                        reply_data['reply_metadata']['edge_case_detected'] = eca['is_edge_case']
+                        if eca['is_edge_case']:
+                            reply_data['reply_metadata']['edge_case_type'] = eca['edge_case_type']
+                    
+                    print(f"[OK] Smart reply generated (Confidence: {smart_result['confidence_score']:.2f}, Method: {smart_result['generation_method']})")
+                    return reply_data
+                    
+                except Exception as e:
+                    print(f"[WARNING] Smart reply generation failed: {e}, falling back to legacy templates")
+            
+            # === LEGACY TEMPLATE SYSTEM (Fallback) ===
             # Get thread analysis
             thread_analysis = processed_data.get('thread_analysis', {})
             
@@ -567,6 +547,7 @@ class AdvancedEmailProcessor(EmailProcessor):
             
             # Check if this email type needs a reply
             if reply_context['category'] == 'no_reply_needed':
+                reply_data['reply_metadata']['generation_method'] = 'no_reply'
                 return reply_data  # Return empty reply data
             
             # Get appropriate template
@@ -604,17 +585,20 @@ class AdvancedEmailProcessor(EmailProcessor):
                     'tone_matched': True,
                     'context_aware': thread_context is not None,
                     'template_used': f"{template_category}_{tone_level}",
-                    'personalization_level': 'high'
+                    'personalization_level': 'medium',
+                    'generation_method': 'legacy_template'
                 })
             
             else:
                 # Fallback to base reply generation
                 reply_data['primary_reply'] = processed_data.get('draft_reply', 
                     self._generate_fallback_reply(email_data['sender_name']))
+                reply_data['reply_metadata']['generation_method'] = 'legacy_fallback'
             
         except Exception as e:
-            print(f"⚠️ Advanced reply generation failed: {e}")
+            print(f"[ERROR] Advanced reply generation failed: {e}")
             reply_data['primary_reply'] = f"Hi {email_data.get('sender_name', 'there')},\n\nThank you for your email. I'll review and respond accordingly.\n\nBest regards"
+            reply_data['reply_metadata']['generation_method'] = 'error_fallback'
         
         return reply_data
     
@@ -629,56 +613,46 @@ class AdvancedEmailProcessor(EmailProcessor):
             thread_analysis = processed_email.get('thread_analysis', {})
             if thread_analysis.get('is_continuation'):
                 stage = thread_analysis.get('conversation_stage', 'unknown')
-                insights.append(f"🧵 Conversation stage: {stage}")
+                insights.append(f"[THREAD] Conversation stage: {stage}")
                 
                 if thread_analysis.get('urgency_escalation'):
-                    insights.append("⚠️ Urgency has escalated in this thread")
+                    insights.append("[WARNING] Urgency has escalated in this thread")
             
             # Tone-based insights
             tone_analysis = processed_email.get('tone_analysis', {})
             if tone_analysis.get('emotional_state') in ['negative', 'frustrated']:
-                insights.append("😔 Sender may be frustrated - consider empathetic response")
+                insights.append("[EMOTION] Sender may be frustrated - consider empathetic response")
             elif tone_analysis.get('urgency_tone') == 'urgent':
-                insights.append("⚡ High urgency detected - prioritize immediate response")
-            
-            # Calendar-based insights
-            calendar_events = processed_email.get('calendar_events', {})
-            if calendar_events.get('meetings'):
-                meeting_count = len(calendar_events['meetings'])
-                insights.append(f"📅 {meeting_count} meeting(s) mentioned - may need calendar coordination")
-            
-            if calendar_events.get('deadlines'):
-                deadline_count = len(calendar_events['deadlines'])
-                insights.append(f"⏰ {deadline_count} deadline(s) identified - time-sensitive action required")
+                insights.append("[EMOJI] High urgency detected - prioritize immediate response")
             
             # Priority-based insights
             priority_level = processed_email.get('priority_level')
             priority_reasons = processed_email.get('priority_reasons', [])
             
             if priority_level == 'High' and len(priority_reasons) > 2:
-                insights.append("🔥 Multiple high-priority indicators - requires immediate attention")
+                insights.append("[FIRE] Multiple high-priority indicators - requires immediate attention")
             
             # Entity-based insights
             entities = processed_email.get('extracted_entities', {})
             if entities.get('people') and len(entities['people']) > 3:
-                insights.append("👥 Multiple people mentioned - may be group coordination needed")
+                insights.append("[EMOJI] Multiple people mentioned - may be group coordination needed")
             
             if entities.get('money'):
-                insights.append("💰 Financial information mentioned - handle with care")
+                insights.append("[EMOJI] Financial information mentioned - handle with care")
             
             # Attachment insights
             if processed_email.get('has_attachments'):
                 attachment_count = processed_email.get('attachment_count', 0)
                 if attachment_count > 2:
-                    insights.append(f"📎 {attachment_count} attachments - document review required")
+                    insights.append(f"[EMOJI] {attachment_count} attachments - document review required")
             
             # AI confidence insights
             ai_confidence = processed_email.get('ai_confidence', 0)
             if ai_confidence < 0.7:
-                insights.append("🤔 AI confidence lower than usual - manual review recommended")
+                insights.append("[EMOJI] AI confidence lower than usual - manual review recommended")
             
         except Exception as e:
-            print(f"⚠️ Insight generation failed: {e}")
+            print(f"[WARNING] Insight generation failed: {e}")
         
         return insights
     
@@ -838,14 +812,7 @@ class AdvancedEmailProcessor(EmailProcessor):
             # Add deadline context if urgent or if template contains deadline
             if '{deadline}' in template:
                 if reply_context.get('urgency') in ['urgent', 'high']:
-                    calendar_events = processed_data.get('calendar_events', {})
-                    deadlines = calendar_events.get('deadlines', [])
-                    
-                    if deadlines:
-                        deadline_text = deadlines[0].get('deadline', 'end of day')
-                        template_vars['deadline'] = deadline_text
-                    else:
-                        template_vars['deadline'] = 'end of day'
+                    template_vars['deadline'] = 'end of day'
                 else:
                     template_vars['deadline'] = 'shortly'
             
@@ -854,7 +821,7 @@ class AdvancedEmailProcessor(EmailProcessor):
             return personalized
             
         except Exception as e:
-            print(f"⚠️ Template personalization failed: {e}")
+            print(f"[WARNING] Template personalization failed: {e}")
             # Safe fallback
             sender_name = email_data.get('sender_name', 'there')
             return f"Hi {sender_name},\n\nThank you for your email. I'll review and respond accordingly.\n\nBest regards"
@@ -893,7 +860,7 @@ class AdvancedEmailProcessor(EmailProcessor):
             # Save behavioral data
             self._save_behavioral_data()
         except Exception as e:
-            print(f"⚠️ Behavioral pattern update failed: {e}")
+            print(f"[WARNING] Behavioral pattern update failed: {e}")
     
     def _load_behavioral_data(self):
         """Load behavioral patterns from file"""
@@ -922,14 +889,14 @@ class AdvancedEmailProcessor(EmailProcessor):
                            include_threads: bool = True) -> List[Dict[str, Any]]:
         """Process a batch of emails with thread awareness and context"""
         
-        print(f"\n🚀 BATCH PROCESSING {len(emails)} EMAILS WITH ADVANCED AI")
+        print(f"\n[INIT] BATCH PROCESSING {len(emails)} EMAILS WITH ADVANCED AI")
         
         processed_emails = []
         thread_map = {}
         
         # Group emails by thread if enabled
         if include_threads:
-            print("🧵 Analyzing email threads...")
+            print("[THREAD] Analyzing email threads...")
             for email in emails:
                 thread_id = email.get('thread_id', email.get('id'))
                 if thread_id not in thread_map:
@@ -937,7 +904,7 @@ class AdvancedEmailProcessor(EmailProcessor):
                 thread_map[thread_id].append(email)
         
         # Process each email with context
-        print("🤖 Processing emails with AI...")
+        print("[AI] Processing emails with AI...")
         
         for i, email in enumerate(emails, 1):
             print(f"   Processing email {i}/{len(emails)}...")
@@ -955,19 +922,19 @@ class AdvancedEmailProcessor(EmailProcessor):
                 processed_emails.append(processed_email)
                 
             except Exception as e:
-                print(f"   ❌ Failed to process email {i}: {e}")
+                print(f"   [ERROR] Failed to process email {i}: {e}")
                 email['processing_error'] = str(e)
                 processed_emails.append(email)
         
         # Generate batch insights
-        print("💡 Generating batch insights...")
+        print("[IDEA] Generating batch insights...")
         batch_insights = self._generate_batch_insights(processed_emails)
         
         # Add batch insights to each email
         for email in processed_emails:
             email['batch_insights'] = batch_insights
         
-        print(f"✅ Batch processing complete! Processed {len(processed_emails)} emails")
+        print(f"[OK] Batch processing complete! Processed {len(processed_emails)} emails")
         return processed_emails
     
     def _generate_batch_insights(self, processed_emails: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -995,27 +962,19 @@ class AdvancedEmailProcessor(EmailProcessor):
                 if tone_analysis.get('urgency_tone') in ['urgent', 'high']:
                     insights['urgent_replies_needed'] += 1
                 
-                # Count meeting requests
-                calendar_events = email.get('calendar_events', {})
-                if calendar_events.get('meetings'):
-                    insights['meeting_requests'] += len(calendar_events['meetings'])
-                
                 # Track senders
                 sender = email.get('sender_email', 'unknown')
                 insights['top_senders'][sender] = insights['top_senders'].get(sender, 0) + 1
             
             # Generate recommendations
             if insights['high_priority_count'] > 3:
-                insights['recommended_actions'].append("🔥 Multiple high-priority emails need immediate attention")
-            
-            if insights['meeting_requests'] > 2:
-                insights['recommended_actions'].append("📅 Several meeting requests need calendar coordination")
+                insights['recommended_actions'].append("[FIRE] Multiple high-priority emails need immediate attention")
             
             if insights['urgent_replies_needed'] > 1:
-                insights['recommended_actions'].append("⚡ Multiple urgent responses required today")
+                insights['recommended_actions'].append("[EMOJI] Multiple urgent responses required today")
             
         except Exception as e:
-            print(f"⚠️ Batch insights generation failed: {e}")
+            print(f"[WARNING] Batch insights generation failed: {e}")
         
         return insights
 
@@ -1029,7 +988,7 @@ class CompleteEmailAgent:
     def __init__(self, use_gmail_api: bool = False):
         """Initialize complete email agent"""
         
-        print("🤖 INITIALIZING COMPLETE AI EMAIL AGENT")
+        print("[AI] INITIALIZING COMPLETE AI EMAIL AGENT")
         
         self.use_gmail_api = use_gmail_api
         
@@ -1039,42 +998,42 @@ class CompleteEmailAgent:
                 from auth_test import authenticate_gmail
                 from email_fetcher import EmailFetcher
                 
-                print("📧 Initializing Gmail API connection...")
+                print("[EMAIL] Initializing Gmail API connection...")
                 gmail_service = authenticate_gmail()
                 self.email_fetcher = EmailFetcher(gmail_service)
-                print("✅ Gmail API email fetcher ready")
+                print("[OK] Gmail API email fetcher ready")
                 
             except Exception as e:
-                print(f"❌ Gmail API failed, switching to mock: {e}")
+                print(f"[ERROR] Gmail API failed, switching to mock: {e}")
                 from mock_email_fetcher import MockEmailFetcher
                 self.email_fetcher = MockEmailFetcher()
                 self.use_gmail_api = False
-                print("✅ Mock email fetcher ready")
+                print("[OK] Mock email fetcher ready")
         else:
             try:
                 from mock_email_fetcher import MockEmailFetcher
                 self.email_fetcher = MockEmailFetcher()
-                print("✅ Mock email fetcher ready")
+                print("[OK] Mock email fetcher ready")
             except ImportError:
-                print("❌ Mock email fetcher not available")
+                print("[ERROR] Mock email fetcher not available")
                 raise
         
         # Initialize advanced AI processor
-        print("🧠 Initializing Advanced AI Processor...")
+        print("[BRAIN] Initializing Advanced AI Processor...")
         self.ai_processor = AdvancedEmailProcessor()
-        print("✅ Advanced AI processor ready")
+        print("[OK] Advanced AI processor ready")
         
-        print("🎉 Complete AI Email Agent initialized successfully!")
+        print("[PARTY] Complete AI Email Agent initialized successfully!")
     
     def process_daily_emails(self, hours_back: int = 24, max_emails: int = 50) -> Dict[str, Any]:
         """Complete daily email processing workflow"""
         
-        print(f"\n🚀 STARTING DAILY EMAIL PROCESSING")
-        print(f"📅 Fetching emails from last {hours_back} hours...")
+        print(f"\n[INIT] STARTING DAILY EMAIL PROCESSING")
+        print(f"[EMOJI] Fetching emails from last {hours_back} hours...")
         
         try:
             # Fetch emails
-            print("📥 Step 1: Fetching emails...")
+            print("[EMOJI] Step 1: Fetching emails...")
             if self.use_gmail_api:
                 raw_emails = self.email_fetcher.get_recent_emails(
                     hours=hours_back,
@@ -1086,7 +1045,7 @@ class CompleteEmailAgent:
                     count=min(max_emails, 15)
                 )
             
-            print(f"📧 Fetched {len(raw_emails)} emails")
+            print(f"[EMAIL] Fetched {len(raw_emails)} emails")
             
             if not raw_emails:
                 return {
@@ -1098,14 +1057,14 @@ class CompleteEmailAgent:
                 }
             
             # Advanced AI processing
-            print("🤖 Step 2: Processing with Advanced AI...")
+            print("[AI] Step 2: Processing with Advanced AI...")
             processed_emails = self.ai_processor.process_email_batch(
                 raw_emails[:max_emails],
                 include_threads=True
             )
             
             # Organize by priority
-            print("📊 Step 3: Organizing by priority...")
+            print("[INFO] Step 3: Organizing by priority...")
             
             high_priority = []
             medium_priority = []
@@ -1130,10 +1089,9 @@ class CompleteEmailAgent:
             low_priority.sort(key=lambda x: x.get('ai_confidence', 0), reverse=True)
             
             # Generate processing summary
-            print("📈 Step 4: Generating summary...")
+            print("[CHART] Step 4: Generating summary...")
             
             emails_with_replies = sum(1 for e in processed_emails if e.get('advanced_reply'))
-            emails_with_calendar = sum(1 for e in processed_emails if e.get('calendar_events', {}).get('meetings'))
             emails_with_threads = sum(1 for e in processed_emails if e.get('thread_analysis', {}).get('is_continuation'))
             
             processing_summary = {
@@ -1143,7 +1101,6 @@ class CompleteEmailAgent:
                 'low_priority_count': len(low_priority),
                 'ai_features_used': {
                     'advanced_replies_generated': emails_with_replies,
-                    'calendar_events_detected': emails_with_calendar,
                     'thread_conversations_analyzed': emails_with_threads
                 },
                 'top_insights': self._extract_top_insights(processed_emails),
@@ -1160,13 +1117,13 @@ class CompleteEmailAgent:
                 'processing_timestamp': datetime.now().isoformat()
             }
             
-            print("✅ Daily email processing completed successfully!")
-            print(f"📊 Results: {len(high_priority)} high, {len(medium_priority)} medium, {len(low_priority)} low priority")
+            print("[OK] Daily email processing completed successfully!")
+            print(f"[INFO] Results: {len(high_priority)} high, {len(medium_priority)} medium, {len(low_priority)} low priority")
             
             return results
             
         except Exception as e:
-            print(f"❌ Daily email processing failed: {e}")
+            print(f"[ERROR] Daily email processing failed: {e}")
             return {
                 'total_emails': 0,
                 'high_priority': [],
@@ -1187,21 +1144,14 @@ class CompleteEmailAgent:
                              if e.get('tone_analysis', {}).get('urgency_tone') == 'urgent')
             
             if urgent_count > 0:
-                insights.append(f"⚡ {urgent_count} emails marked as urgent need immediate attention")
-            
-            # Count meetings
-            meeting_count = sum(len(e.get('calendar_events', {}).get('meetings', [])) 
-                              for e in processed_emails)
-            
-            if meeting_count > 0:
-                insights.append(f"📅 {meeting_count} meetings detected requiring calendar coordination")
+                insights.append(f"[EMOJI] {urgent_count} emails marked as urgent need immediate attention")
             
             # Count escalated threads
             escalated_threads = sum(1 for e in processed_emails 
                                   if e.get('thread_analysis', {}).get('urgency_escalation'))
             
             if escalated_threads > 0:
-                insights.append(f"🔥 {escalated_threads} email threads show urgency escalation")
+                insights.append(f"[FIRE] {escalated_threads} email threads show urgency escalation")
             
             # Identify top senders
             sender_counts = {}
@@ -1213,10 +1163,10 @@ class CompleteEmailAgent:
                 top_sender = max(sender_counts, key=sender_counts.get)
                 top_count = sender_counts[top_sender]
                 if top_count > 2:
-                    insights.append(f"👤 Most emails from {top_sender} ({top_count} emails)")
+                    insights.append(f"[EMOJI] Most emails from {top_sender} ({top_count} emails)")
             
         except Exception as e:
-            insights.append(f"⚠️ Insight analysis error: {str(e)}")
+            insights.append(f"[WARNING] Insight analysis error: {str(e)}")
         
         return insights[:5]
     
@@ -1229,31 +1179,24 @@ class CompleteEmailAgent:
         try:
             # High priority recommendations
             if len(high_priority) > 5:
-                recommendations.append("🔥 Focus on high-priority emails first - you have more than usual today")
-            
-            # Meeting coordination recommendations
-            meeting_emails = [e for e in high_priority + medium_priority 
-                            if e.get('calendar_events', {}).get('meetings')]
-            
-            if len(meeting_emails) > 2:
-                recommendations.append("📅 Block time for calendar coordination - multiple meeting requests detected")
+                recommendations.append("[FIRE] Focus on high-priority emails first - you have more than usual today")
             
             # Quick reply recommendations
             quick_reply_emails = [e for e in high_priority 
                                 if e.get('advanced_reply', {}).get('primary_reply')]
             
             if len(quick_reply_emails) > 3:
-                recommendations.append("⚡ Several draft replies ready - consider batch sending to save time")
+                recommendations.append("[EMOJI] Several draft replies ready - consider batch sending to save time")
             
             # Thread follow-up recommendations
             extended_threads = [e for e in high_priority + medium_priority 
                               if e.get('thread_analysis', {}).get('conversation_stage') == 'extended']
             
             if extended_threads:
-                recommendations.append("🧵 Some email threads are getting long - consider phone calls to resolve faster")
+                recommendations.append("[THREAD] Some email threads are getting long - consider phone calls to resolve faster")
             
         except Exception as e:
-            recommendations.append(f"⚠️ Recommendation generation error: {str(e)}")
+            recommendations.append(f"[WARNING] Recommendation generation error: {str(e)}")
         
         return recommendations[:4]
 
@@ -1265,11 +1208,11 @@ def test_advanced_ai_processor():
     """Test the Advanced AI Processor with sample data"""
     
     print("=" * 80)
-    print("🧪 ADVANCED AI EMAIL PROCESSOR TEST")
+    print("[TEST] ADVANCED AI EMAIL PROCESSOR TEST")
     print("=" * 80)
     
     # Create advanced processor
-    print("🚀 Initializing Advanced AI Processor...")
+    print("[INIT] Initializing Advanced AI Processor...")
     advanced_processor = AdvancedEmailProcessor()
     
     # Test with sample email thread
@@ -1315,16 +1258,16 @@ John''',
         }
     ]
     
-    print(f"\n📧 Testing with {len(sample_emails)} sample emails...")
+    print(f"\n[EMAIL] Testing with {len(sample_emails)} sample emails...")
     
     # Process emails as batch
     processed_batch = advanced_processor.process_email_batch(sample_emails)
     
     # Display results
-    print(f"\n🎯 ADVANCED AI PROCESSING RESULTS:")
+    print(f"\n[TARGET] ADVANCED AI PROCESSING RESULTS:")
     
     for i, email in enumerate(processed_batch, 1):
-        print(f"\n📧 EMAIL {i} RESULTS:")
+        print(f"\n[EMAIL] EMAIL {i} RESULTS:")
         print(f"   Subject: {email.get('subject')}")
         print(f"   Priority: {email.get('priority_level')} (Score: {email.get('priority_score')})")
         print(f"   AI Summary: {email.get('ai_summary', 'N/A')[:100]}...")
@@ -1335,10 +1278,6 @@ John''',
         
         thread_analysis = email.get('thread_analysis', {})
         print(f"   Thread Stage: {thread_analysis.get('conversation_stage', 'N/A')}")
-        
-        calendar_events = email.get('calendar_events', {})
-        print(f"   Meetings Detected: {len(calendar_events.get('meetings', []))}")
-        print(f"   Deadlines Detected: {len(calendar_events.get('deadlines', []))}")
         
         advanced_reply = email.get('advanced_reply', {})
         if advanced_reply.get('primary_reply'):
@@ -1351,60 +1290,58 @@ John''',
     # Display batch insights
     if processed_batch:
         batch_insights = processed_batch[0].get('batch_insights', {})
-        print(f"\n📊 BATCH INSIGHTS:")
+        print(f"\n[INFO] BATCH INSIGHTS:")
         print(f"   High Priority Emails: {batch_insights.get('high_priority_count', 0)}")
         print(f"   Urgent Replies Needed: {batch_insights.get('urgent_replies_needed', 0)}")
-        print(f"   Meeting Requests: {batch_insights.get('meeting_requests', 0)}")
         
         recommendations = batch_insights.get('recommended_actions', [])
         if recommendations:
             print(f"   Recommendations: {recommendations[0]}")
     
-    print(f"\n🎉 Advanced AI Processor test completed successfully!")
+    print(f"\n[PARTY] Advanced AI Processor test completed successfully!")
     return True
 
 def test_complete_email_agent():
     """Test the complete email agent end-to-end"""
     
     print("=" * 80)
-    print("🧪 COMPLETE AI EMAIL AGENT - END-TO-END TEST")  
+    print("[TEST] COMPLETE AI EMAIL AGENT - END-TO-END TEST")  
     print("=" * 80)
     
     # Test with mock data
-    print("🤖 Creating Complete AI Email Agent (mock mode)...")
+    print("[AI] Creating Complete AI Email Agent (mock mode)...")
     agent = CompleteEmailAgent(use_gmail_api=False)
     
     # Run daily email processing
-    print("\n📅 Running daily email processing...")
+    print("\n[EMOJI] Running daily email processing...")
     results = agent.process_daily_emails(hours_back=24, max_emails=10)
     
     # Display comprehensive results
-    print(f"\n🎯 COMPLETE EMAIL AGENT RESULTS:")
+    print(f"\n[TARGET] COMPLETE EMAIL AGENT RESULTS:")
     
-    print(f"📊 PROCESSING SUMMARY:")
+    print(f"[INFO] PROCESSING SUMMARY:")
     summary = results['processing_summary']
     print(f"   Total emails processed: {summary['total_processed']}")
     print(f"   High priority: {summary['high_priority_count']}")
     print(f"   Medium priority: {summary['medium_priority_count']}")
     print(f"   Low priority: {summary['low_priority_count']}")
     
-    print(f"\n🤖 AI FEATURES UTILIZED:")
+    print(f"\n[AI] AI FEATURES UTILIZED:")
     ai_features = summary['ai_features_used']
     print(f"   Advanced replies generated: {ai_features['advanced_replies_generated']}")
-    print(f"   Calendar events detected: {ai_features['calendar_events_detected']}")
     print(f"   Thread conversations analyzed: {ai_features['thread_conversations_analyzed']}")
     
-    print(f"\n💡 TOP INSIGHTS:")
+    print(f"\n[IDEA] TOP INSIGHTS:")
     for insight in summary['top_insights']:
         print(f"   {insight}")
     
-    print(f"\n📋 DAILY RECOMMENDATIONS:")
+    print(f"\n[EMOJI] DAILY RECOMMENDATIONS:")
     for recommendation in summary['recommended_actions']:
         print(f"   {recommendation}")
     
     # Show sample high priority email
     if results['high_priority']:
-        print(f"\n📧 SAMPLE HIGH PRIORITY EMAIL:")
+        print(f"\n[EMAIL] SAMPLE HIGH PRIORITY EMAIL:")
         sample = results['high_priority'][0]
         print(f"   From: {sample.get('sender_name')}")
         print(f"   Subject: {sample.get('subject')}")
@@ -1419,7 +1356,7 @@ def test_complete_email_agent():
         if advanced_reply.get('primary_reply'):
             print(f"   Draft Reply: {advanced_reply['primary_reply'][:80]}...")
     
-    print(f"\n🎉 Complete Email Agent test successful!")
+    print(f"\n[PARTY] Complete Email Agent test successful!")
     return True
 
 # =============================================================================
@@ -1427,7 +1364,7 @@ def test_complete_email_agent():
 # =============================================================================
 
 if __name__ == '__main__':
-    print("🚀 RUNNING COMPLETE ADVANCED AI TESTS")
+    print("[INIT] RUNNING COMPLETE ADVANCED AI TESTS")
     print("=" * 80)
     
     # Test 1: Advanced AI Processor standalone
@@ -1438,6 +1375,6 @@ if __name__ == '__main__':
     # Test 2: Complete Email Agent end-to-end  
     test_complete_email_agent()
     
-    print("\n🎊 ALL ADVANCED AI TESTS COMPLETED SUCCESSFULLY!")
-    print("🤖 Your AI Email Agent has enterprise-level intelligence!")
-    print("📅 Ready for Day 3: Web Interface & Interactive Features!")
+    print("\n[EMOJI] ALL ADVANCED AI TESTS COMPLETED SUCCESSFULLY!")
+    print("[AI] Your AI Email Agent has enterprise-level intelligence!")
+    print("[EMOJI] Ready for Day 3: Web Interface & Interactive Features!")
