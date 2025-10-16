@@ -522,8 +522,8 @@ class AdvancedEmailProcessor(EmailProcessor):
                         detected_tone=detected_tone
                     )
                     
-                    # Extract results
-                    reply_data['primary_reply'] = smart_result['reply_text']
+                    # Extract results (NEW: Handle None for no-reply emails)
+                    reply_data['primary_reply'] = smart_result['reply_text']  # Can be None
                     reply_data['reply_metadata'].update({
                         'tone_matched': True,
                         'context_aware': True,
@@ -532,6 +532,20 @@ class AdvancedEmailProcessor(EmailProcessor):
                         'confidence_level': smart_result['confidence_level'],
                         'personalization_level': 'high' if smart_result['confidence_score'] >= 0.80 else 'medium'
                     })
+                    
+                    # NEW: Add reply necessity metadata
+                    if 'reply_necessity' in smart_result['metadata']:
+                        rn = smart_result['metadata']['reply_necessity']
+                        reply_data['reply_metadata'].update({
+                            'reply_needed': rn.get('needs_reply', True),
+                            'necessity_level': rn.get('necessity_level', 'optional'),
+                            'email_intent': rn.get('email_intent', 'general'),
+                            'suggested_action': rn.get('suggested_action', '')
+                        })
+                    
+                    # NEW: Add reply recommendation for no-reply emails
+                    if 'reply_recommendation' in smart_result['metadata']:
+                        reply_data['reply_metadata']['reply_recommendation'] = smart_result['metadata']['reply_recommendation']
                     
                     # Add safety metadata
                     if 'sensitive_analysis' in smart_result['metadata']:

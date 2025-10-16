@@ -292,6 +292,213 @@ class EdgeCaseHandler:
 
 
 # =============================================================================
+# REPLY NECESSITY ANALYZER
+# =============================================================================
+
+class ReplyNecessityAnalyzer:
+    """
+    Determines if an email actually needs a reply based on email type,
+    sender patterns, content patterns, and call-to-action presence.
+    """
+    
+    def __init__(self):
+        """Initialize reply necessity analyzer"""
+        print("[INFO] Initializing Reply Necessity Analyzer...")
+        
+        # Patterns for different email types
+        self.announcement_patterns = [
+            r'\b(save the date|mark your calendar|join us|we\'re (excited|pleased|happy) to announce)\b',
+            r'\b(upcoming event|event details|event information|registration (is|now) open)\b',
+            r'\b(don\'t miss|see you (there|soon)|looking forward to seeing you)\b',
+            r'\b(venue|date and time|event agenda|speakers include)\b'
+        ]
+        
+        self.notification_patterns = [
+            r'\b(your .+ has been|confirmation of|receipt for|thank you for your)\b',
+            r'\b(this is (a|an) (automated|automatic) (message|email|notification))\b',
+            r'\b(you (have|\'ve) successfully|your (order|payment|subscription|registration))\b',
+            r'\b(status update|activity notification|alert)\b'
+        ]
+        
+        self.marketing_patterns = [
+            r'\b(exclusive offer|limited time|special (deal|offer|promotion))\b',
+            r'\b(discover|explore|shop now|buy now|get started|learn more)\b',
+            r'\b(new (features|products|services|arrivals)|introducing)\b',
+            r'\b(don\'t miss out|act now|hurry|ends soon)\b',
+            r'\bunsubscribe\b'
+        ]
+        
+        self.newsletter_patterns = [
+            r'\b(newsletter|digest|weekly (update|roundup)|monthly (update|roundup))\b',
+            r'\b(in this (issue|edition)|this (week|month)\'s)\b',
+            r'\b(subscriber|subscription)\b'
+        ]
+        
+        self.invitation_patterns = [
+            r'\b(you\'re invited|invitation to|rsvp|please join us)\b',
+            r'\b(will you (be|join)|can you (attend|make it|join))\b'
+        ]
+        
+        self.transactional_patterns = [
+            r'\b(receipt|invoice|order confirmation|payment (received|confirmed))\b',
+            r'\b(transaction (complete|successful)|your purchase)\b'
+        ]
+        
+        self.security_alert_patterns = [
+            r'\b(security alert|suspicious activity|unusual (login|activity))\b',
+            r'\b(password reset|verify your|action required|immediate action)\b',
+            r'\b(detected|exposed|breach|unauthorized)\b'
+        ]
+        
+        # Compile patterns for performance
+        self.compiled_patterns = {
+            'announcement': [re.compile(p, re.IGNORECASE) for p in self.announcement_patterns],
+            'notification': [re.compile(p, re.IGNORECASE) for p in self.notification_patterns],
+            'marketing': [re.compile(p, re.IGNORECASE) for p in self.marketing_patterns],
+            'newsletter': [re.compile(p, re.IGNORECASE) for p in self.newsletter_patterns],
+            'invitation': [re.compile(p, re.IGNORECASE) for p in self.invitation_patterns],
+            'transactional': [re.compile(p, re.IGNORECASE) for p in self.transactional_patterns],
+            'security_alert': [re.compile(p, re.IGNORECASE) for p in self.security_alert_patterns]
+        }
+        
+        print("[OK] Reply necessity analyzer ready")
+    
+    def analyze_reply_necessity(self, email_data: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Determine if an email actually needs a reply
+        
+        Returns:
+            {
+                'needs_reply': bool,
+                'necessity_level': 'required'|'optional'|'not_needed'|'action_only',
+                'email_intent': str,
+                'reason': str,
+                'suggested_action': str
+            }
+        """
+        
+        subject = email_data.get('subject', '').lower()
+        body = email_data.get('body', '').lower()
+        sender = email_data.get('sender_email', '').lower()
+        full_text = f"{subject} {body}"
+        
+        result = {
+            'needs_reply': True,
+            'necessity_level': 'optional',
+            'email_intent': 'general',
+            'reason': '',
+            'suggested_action': 'Review and decide'
+        }
+        
+        # Check for automated/no-reply senders
+        if 'noreply' in sender or 'no-reply' in sender or 'donotreply' in sender:
+            result['needs_reply'] = False
+            result['necessity_level'] = 'not_needed'
+            result['email_intent'] = 'automated'
+            result['reason'] = 'Automated email from no-reply address'
+            result['suggested_action'] = 'Mark as read'
+            return result
+        
+        # Check for security alerts (action needed, but don't reply)
+        if self._matches_patterns(full_text, 'security_alert'):
+            result['needs_reply'] = False
+            result['necessity_level'] = 'action_only'
+            result['email_intent'] = 'security_alert'
+            result['reason'] = 'Security alert requiring action on platform, not email reply'
+            result['suggested_action'] = 'Take action on the platform (e.g., GitHub, etc.)'
+            return result
+        
+        # Check for transactional emails (receipts, confirmations)
+        if self._matches_patterns(full_text, 'transactional'):
+            result['needs_reply'] = False
+            result['necessity_level'] = 'not_needed'
+            result['email_intent'] = 'transactional'
+            result['reason'] = 'Automated transaction confirmation'
+            result['suggested_action'] = 'File for records'
+            return result
+        
+        # Check for marketing emails
+        if self._matches_patterns(full_text, 'marketing'):
+            result['needs_reply'] = False
+            result['necessity_level'] = 'not_needed'
+            result['email_intent'] = 'marketing'
+            result['reason'] = 'Marketing/promotional content'
+            result['suggested_action'] = 'Review offers or unsubscribe'
+            return result
+        
+        # Check for newsletters
+        if self._matches_patterns(full_text, 'newsletter'):
+            result['needs_reply'] = False
+            result['necessity_level'] = 'not_needed'
+            result['email_intent'] = 'newsletter'
+            result['reason'] = 'Newsletter or periodic update'
+            result['suggested_action'] = 'Read and archive'
+            return result
+        
+        # Check for announcements
+        if self._matches_patterns(full_text, 'announcement'):
+            result['needs_reply'] = False
+            result['necessity_level'] = 'optional'
+            result['email_intent'] = 'announcement'
+            result['reason'] = 'Event announcement or update'
+            result['suggested_action'] = 'Add to calendar or acknowledge if interested'
+            return result
+        
+        # Check for invitations (optional reply - RSVP)
+        if self._matches_patterns(full_text, 'invitation'):
+            result['needs_reply'] = True
+            result['necessity_level'] = 'optional'
+            result['email_intent'] = 'invitation'
+            result['reason'] = 'Event invitation - RSVP if attending'
+            result['suggested_action'] = 'RSVP or add to calendar'
+            return result
+        
+        # Check for notifications
+        if self._matches_patterns(full_text, 'notification'):
+            result['needs_reply'] = False
+            result['necessity_level'] = 'not_needed'
+            result['email_intent'] = 'notification'
+            result['reason'] = 'Automated notification'
+            result['suggested_action'] = 'Review and mark as read'
+            return result
+        
+        # Check context for direct questions or requests
+        has_questions = len(context.get('questions', [])) > 0
+        has_action_items = len(context.get('action_items', [])) > 0
+        
+        if has_questions or has_action_items:
+            result['needs_reply'] = True
+            result['necessity_level'] = 'required'
+            result['email_intent'] = 'request'
+            result['reason'] = 'Contains direct questions or action requests'
+            result['suggested_action'] = 'Reply with answers or confirmation'
+            return result
+        
+        # Check email category from context
+        email_category = context.get('email_category', 'general')
+        if email_category in ['question', 'info_request', 'problem_report']:
+            result['needs_reply'] = True
+            result['necessity_level'] = 'required'
+            result['email_intent'] = email_category
+            result['reason'] = f'Email is a {email_category.replace("_", " ")}'
+            result['suggested_action'] = 'Reply with response'
+            return result
+        
+        # Default: optional reply for general emails
+        result['needs_reply'] = True
+        result['necessity_level'] = 'optional'
+        result['email_intent'] = 'general'
+        result['reason'] = 'General communication'
+        result['suggested_action'] = 'Reply if needed'
+        return result
+    
+    def _matches_patterns(self, text: str, pattern_type: str) -> bool:
+        """Check if text matches any pattern of given type"""
+        patterns = self.compiled_patterns.get(pattern_type, [])
+        return any(pattern.search(text) for pattern in patterns)
+
+
+# =============================================================================
 # EMAIL CONTEXT EXTRACTOR
 # =============================================================================
 
@@ -458,22 +665,80 @@ class EmailContextExtractor:
         return context
     
     def _extract_questions(self, text: str) -> List[str]:
-        """Extract questions from email"""
+        """Extract questions from email that are actually directed at the user"""
         questions = []
         
         # Find sentences ending with ?
         question_sentences = [s.strip() for s in text.split('.') if '?' in s]
         
-        for sentence in question_sentences[:3]:  # Limit to 3 questions
+        for sentence in question_sentences:
             # Clean up
             sentence = sentence.strip()
-            if len(sentence) > 10:  # Minimum length
-                questions.append(sentence)
+            if len(sentence) < 10:  # Too short
+                continue
+            
+            # CRITICAL FIX: Validate question is directed at user
+            if not self._is_question_directed_at_user(sentence):
+                continue
+            
+            # Filter out rhetorical questions
+            if self._is_rhetorical_question(sentence):
+                continue
+            
+            questions.append(sentence)
+            
+            if len(questions) >= 3:  # Limit to 3 validated questions
+                break
         
         return questions
     
+    def _is_question_directed_at_user(self, question: str) -> bool:
+        """Check if question is asking the USER something (not rhetorical or general)"""
+        question_lower = question.lower()
+        
+        # Questions directed at user typically contain these patterns
+        user_directed_patterns = [
+            r'\b(can you|could you|would you|will you|do you|did you|have you|are you)\b',
+            r'\b(your|you\'re|you\'ll|you\'ve)\b',
+            r'\b(what (do|did|will) you|when (do|did|will) you|where (do|did|will) you|how (do|did|will) you|why (do|did|will) you)\b',
+            r'\b(please (let|tell|send|provide|confirm|advise))\b',
+            r'\b(need (you to|your))\b'
+        ]
+        
+        # Check if question matches user-directed patterns
+        for pattern in user_directed_patterns:
+            if re.search(pattern, question_lower):
+                return True
+        
+        # Questions starting with these words are often directed at recipient
+        directed_starts = ['can you', 'could you', 'would you', 'will you', 'do you', 'did you', 
+                          'have you', 'are you', 'what would you', 'when can you', 'how can you']
+        
+        if any(question_lower.startswith(start) for start in directed_starts):
+            return True
+        
+        return False
+    
+    def _is_rhetorical_question(self, question: str) -> bool:
+        """Identify rhetorical questions that don't need answers"""
+        question_lower = question.lower()
+        
+        # Common rhetorical question patterns
+        rhetorical_patterns = [
+            r'\b(isn\'t (it|that) (great|amazing|wonderful|exciting))\b',
+            r'\b(who doesn\'t (love|want|like))\b',
+            r'\b(what could be (better|more))\b',
+            r'\b(right\?|correct\?)$'  # Questions ending with "right?" or "correct?"
+        ]
+        
+        for pattern in rhetorical_patterns:
+            if re.search(pattern, question_lower):
+                return True
+        
+        return False
+    
     def _extract_action_items(self, text: str) -> List[str]:
-        """Extract action items/requests from email"""
+        """Extract action items/requests that are actually directed at the user"""
         action_items = []
         text_lower = text.lower()
         
@@ -485,16 +750,97 @@ class EmailContextExtractor:
                 end = min(len(text), match.end() + 100)
                 snippet = text[start:end].strip()
                 
-                if snippet and len(snippet) > 15:
-                    action_items.append(snippet[:150])  # Limit length
+                if not snippet or len(snippet) < 15:
+                    continue
+                
+                # CRITICAL FIX: Validate action is requested FROM user
+                if not self._is_action_requested_from_user(snippet):
+                    continue
+                
+                # Check if action is in past tense (already done)
+                if self._is_past_tense_action(snippet):
+                    continue
+                
+                action_items.append(snippet[:150])  # Limit length
                     
-                if len(action_items) >= 3:  # Limit to 3 action items
+                if len(action_items) >= 3:  # Limit to 3 validated action items
                     break
             
             if len(action_items) >= 3:
                 break
         
         return action_items
+    
+    def _is_action_requested_from_user(self, text: str) -> bool:
+        """Check if action is being requested FROM the user (not informational)"""
+        text_lower = text.lower()
+        
+        # Patterns indicating request to user
+        request_patterns = [
+            r'\b(please|kindly|could you|can you|would you) (upload|send|provide|submit|complete|review|confirm|fill|click)\b',
+            r'\b(you (need|must|should|have) to|you\'ll need to)\b',
+            r'\b(to (get|proceed|continue|register|attend), (please|kindly|you need to|you must))\b',
+            r'\b(action (required|needed)|require (your|you to))\b'
+        ]
+        
+        for pattern in request_patterns:
+            if re.search(pattern, text_lower):
+                return True
+        
+        # Check for imperative mood (commands directed at user)
+        if self._is_imperative_mood(text):
+            return True
+        
+        # Filter out "I will" statements (sender's actions, not user's)
+        sender_action_patterns = [
+            r'\b(i will|i\'ll|we will|we\'ll|i am|i\'m|we are|we\'re)\b',
+            r'\b(has been|have been|was|were) (sent|completed|updated|processed)\b'
+        ]
+        
+        for pattern in sender_action_patterns:
+            if re.search(pattern, text_lower):
+                return False
+        
+        return True
+    
+    def _is_imperative_mood(self, sentence: str) -> bool:
+        """Check if sentence is in imperative mood (command/request)"""
+        sentence_lower = sentence.lower().strip()
+        
+        # Imperative sentences often start with verbs
+        imperative_starts = [
+            'upload', 'send', 'provide', 'submit', 'complete', 'review', 'confirm',
+            'fill', 'click', 'download', 'register', 'attend', 'join', 'visit',
+            'check', 'update', 'install', 'contact', 'call', 'email', 'reply'
+        ]
+        
+        # Check if sentence starts with imperative verb
+        first_word = sentence_lower.split()[0] if sentence_lower else ''
+        if any(first_word.startswith(verb) for verb in imperative_starts):
+            return True
+        
+        # Check for "Please [verb]" pattern
+        if sentence_lower.startswith('please '):
+            return True
+        
+        return False
+    
+    def _is_past_tense_action(self, text: str) -> bool:
+        """Check if action is in past tense (already completed)"""
+        text_lower = text.lower()
+        
+        # Past tense indicators
+        past_patterns = [
+            r'\b(has been|have been|was|were) (sent|completed|updated|processed|uploaded|submitted)\b',
+            r'\b(sent|completed|updated|processed|uploaded|submitted|registered|confirmed) (on|at|yesterday|last)\b',
+            r'\b(already|previously) (sent|completed|updated|processed)\b'
+        ]
+        
+        for pattern in past_patterns:
+            if re.search(pattern, text_lower):
+                return True
+        
+        return False
     
     def _extract_deadlines(self, text: str) -> List[str]:
         """Extract deadline mentions"""
@@ -557,31 +903,62 @@ class EmailContextExtractor:
         return 'normal'
     
     def _categorize_email(self, subject: str, body: str, context: Dict) -> str:
-        """Categorize the type of email"""
+        """Categorize the type of email with enhanced granularity"""
         
         text = f"{subject} {body}".lower()
         
-        # Meeting/scheduling
+        # NEW: Security alerts (high priority, action required)
+        if any(word in text for word in ['security alert', 'suspicious activity', 'detected', 'exposed', 'breach', 'unauthorized']):
+            return 'security_alert'
+        
+        # NEW: Transactional (receipts, confirmations - no reply needed)
+        if any(word in text for word in ['receipt', 'invoice', 'order confirmation', 'payment received', 'transaction complete']):
+            return 'transactional'
+        
+        # NEW: Newsletter/digest (periodic updates - no reply needed)
+        if any(word in text for word in ['newsletter', 'digest', 'weekly update', 'monthly update', 'subscriber', 'unsubscribe']):
+            return 'newsletter'
+        
+        # NEW: Marketing (promotional content - no reply needed)
+        if any(word in text for word in ['exclusive offer', 'limited time', 'special deal', 'shop now', 'buy now', 'discover', 'new features']):
+            return 'marketing'
+        
+        # NEW: Announcement (events, news - no reply needed typically)
+        if any(word in text for word in ['save the date', 'join us', 'we\'re excited to announce', 'upcoming event', 'event details']):
+            return 'announcement'
+        
+        # NEW: Invitation (events - RSVP optional)
+        if any(word in text for word in ['you\'re invited', 'invitation to', 'rsvp', 'please join us', 'can you attend']):
+            return 'invitation'
+        
+        # NEW: Notification (automated alerts - no reply needed)
+        if any(word in text for word in ['your account', 'has been updated', 'confirmation of', 'status update', 'activity notification']):
+            # Check if it's a specific notification that needs action
+            if 'action required' in text or 'please' in text:
+                return 'notification_action_required'
+            return 'notification'
+        
+        # EXISTING: Meeting/scheduling
         if any(word in text for word in ['meeting', 'call', 'schedule', 'appointment', 'available']):
             return 'meeting_request'
         
-        # Questions
-        if context.get('questions') or '?' in body:
+        # EXISTING: Questions (validated questions in context)
+        if context.get('questions'):  # Now uses validated questions only
             return 'question'
         
-        # Problem/issue
+        # EXISTING: Problem/issue
         if any(word in text for word in ['problem', 'issue', 'error', 'broken', 'bug', 'help', 'support']):
             return 'problem_report'
         
-        # Request for information
+        # EXISTING: Request for information
         if any(word in text for word in ['send', 'provide', 'share', 'need', 'request', 'looking for']):
             return 'info_request'
         
-        # Follow-up
+        # EXISTING: Follow-up
         if any(word in text for word in ['follow up', 'following up', 'checking in', 'status', 'update']):
             return 'follow_up'
         
-        # Thank you
+        # EXISTING: Thank you
         if any(word in text for word in ['thank', 'thanks', 'appreciate', 'grateful']):
             return 'acknowledgment'
         
@@ -733,14 +1110,14 @@ class BARTAcknowledgmentGenerator:
         return acknowledgment
     
     def _build_natural_acknowledgment(self, context: Dict, tone: str) -> str:
-        """Build natural-sounding acknowledgment from extracted context"""
+        """Build natural-sounding acknowledgment from VALIDATED context only"""
         parts = []
         
         # Main topic acknowledgment
         topic = context.get('main_topic', 'your email')
         category = context.get('email_category', 'general')
         
-        # Opening varies by tone
+        # Opening varies by tone and category
         if tone == 'formal':
             parts.append(f"Thank you for your email regarding {topic}.")
         elif tone == 'business':
@@ -748,40 +1125,45 @@ class BARTAcknowledgmentGenerator:
         else:
             parts.append(f"Thanks for reaching out about {topic}.")
         
-        # Build acknowledgment components
+        # Build acknowledgment components - CRITICAL FIX: Only mention if validated and non-empty
         acknowledgments = []
         
-        # Questions
-        if context.get('questions'):
-            q_count = len(context['questions'])
+        # Questions - ONLY if list exists AND has items AND extraction was successful
+        questions = context.get('questions', [])
+        if questions and len(questions) > 0 and context.get('extracted_successfully', False):
+            q_count = len(questions)
             if q_count == 1:
                 acknowledgments.append("your question")
             else:
                 acknowledgments.append(f"your {q_count} questions")
         
-        # Attachments
-        if context.get('has_attachments'):
-            count = context.get('attachment_count', 1)
-            if count == 1:
-                acknowledgments.append("the attached document")
-            else:
-                acknowledgments.append(f"the {count} attached documents")
+        # Attachments - ONLY if truly present
+        has_attachments = context.get('has_attachments', False)
+        if has_attachments:
+            count = context.get('attachment_count', 0)
+            if count > 0:  # Safety check
+                if count == 1:
+                    acknowledgments.append("the attached document")
+                else:
+                    acknowledgments.append(f"the {count} attached documents")
         
-        # Action items
-        if context.get('action_items'):
-            action_count = len(context['action_items'])
+        # Action items - ONLY if list exists AND has validated items
+        action_items = context.get('action_items', [])
+        if action_items and len(action_items) > 0 and context.get('extracted_successfully', False):
+            action_count = len(action_items)
             if action_count == 1:
                 acknowledgments.append("the action item you mentioned")
             else:
                 acknowledgments.append(f"the {action_count} action items")
         
-        # Deadline
-        if context.get('deadlines'):
-            deadline = context['deadlines'][0] if context['deadlines'] else None
-            if deadline:
+        # Deadline - ONLY if list exists AND has items
+        deadlines = context.get('deadlines', [])
+        if deadlines and len(deadlines) > 0:
+            deadline = deadlines[0]
+            if deadline:  # Extra safety check
                 acknowledgments.append(f"the {deadline} deadline")
         
-        # Combine acknowledgments naturally
+        # Combine acknowledgments naturally - ONLY if we have validated items
         if acknowledgments:
             if len(acknowledgments) == 1:
                 parts.append(f"I see {acknowledgments[0]}.")
@@ -790,8 +1172,35 @@ class BARTAcknowledgmentGenerator:
             else:
                 ack_text = ", ".join(acknowledgments[:-1]) + f", and {acknowledgments[-1]}"
                 parts.append(f"I see {ack_text}.")
+        # If no specific acknowledgments, just keep the opening (topic-only)
         
         return " ".join(parts)
+    
+    def generate_no_reply_message(self, email_intent: str, context: Dict) -> Optional[str]:
+        """
+        Generate appropriate message for emails that don't need replies
+        Returns None if no reply should be generated at all
+        """
+        
+        # For most no-reply cases, return None (no reply generated)
+        if email_intent in ['transactional', 'notification', 'marketing', 'newsletter']:
+            return None
+        
+        # For announcements, generate brief optional acknowledgment
+        if email_intent == 'announcement':
+            topic = context.get('main_topic', 'the event')
+            return f"Thanks for the heads up! Looking forward to {topic}."
+        
+        # For invitations, suggest RSVP
+        if email_intent == 'invitation':
+            return "Thanks for the invitation! I'll let you know if I can attend."
+        
+        # For security alerts, don't reply - take action
+        if email_intent == 'security_alert':
+            return None
+        
+        # Default: None (no reply)
+        return None
     
     def _fallback_acknowledgment(self, context: Dict, tone: str) -> str:
         """Generate acknowledgment without BART (fallback)"""
@@ -909,6 +1318,9 @@ class SmartReplyGenerator:
         self.sensitive_detector = SensitiveTopicDetector()
         self.edge_case_handler = EdgeCaseHandler()
         
+        # Initialize reply necessity analyzer (NEW)
+        self.reply_necessity_analyzer = ReplyNecessityAnalyzer()
+        
         # Initialize learning system (Phase 3)
         if self.config.track_user_edits:
             try:
@@ -1018,9 +1430,45 @@ class SmartReplyGenerator:
         }
         
         try:
+            # NEW: Step 0 - Extract context first (needed for reply necessity check)
+            context = self.context_extractor.extract_context(email_data)
+            result['context_used'] = context
+            
+            # NEW: Step 1 - Check reply necessity FIRST
+            reply_necessity = self.reply_necessity_analyzer.analyze_reply_necessity(email_data, context)
+            result['metadata']['reply_necessity'] = reply_necessity
+            
+            # If reply is not needed, return early with recommendation
+            if not reply_necessity['needs_reply']:
+                print(f"[INFO] Reply not needed: {reply_necessity['reason']}")
+                print(f"[INFO] Suggested action: {reply_necessity['suggested_action']}")
+                
+                # Check if we should generate optional acknowledgment
+                optional_reply = self.bart_generator.generate_no_reply_message(
+                    reply_necessity['email_intent'], 
+                    context
+                )
+                
+                if optional_reply:
+                    result['reply_text'] = optional_reply
+                    result['confidence_score'] = 0.60
+                    result['confidence_level'] = 'medium'
+                    result['generation_method'] = 'optional_acknowledgment'
+                else:
+                    result['reply_text'] = None
+                    result['confidence_score'] = 0.0
+                    result['confidence_level'] = 'low'
+                    result['generation_method'] = 'no_reply_needed'
+                
+                result['metadata']['reply_recommendation'] = f"No reply needed - {reply_necessity['reason']}"
+                result['metadata']['suggested_action'] = reply_necessity['suggested_action']
+                result['metadata']['email_intent'] = reply_necessity['email_intent']
+                
+                return result
+            
             # PHASE 2: Safety checks before generation
             
-            # Step 1: Check for edge cases
+            # Step 2: Check for edge cases
             edge_case_analysis = self.edge_case_handler.analyze_email(email_data)
             result['metadata']['edge_case_analysis'] = edge_case_analysis
             
@@ -1033,7 +1481,7 @@ class SmartReplyGenerator:
                 print(f"[INFO] Edge case detected: {edge_case_analysis['edge_case_type']}")
                 return result
             
-            # Step 2: Check for sensitive topics
+            # Step 3: Check for sensitive topics
             sensitive_analysis = self.sensitive_detector.detect_sensitive_content(
                 email_data.get('body', ''),
                 email_data.get('subject', '')
@@ -1059,9 +1507,7 @@ class SmartReplyGenerator:
                 
                 return result
             
-            # Step 3: Extract context (normal flow)
-            context = self.context_extractor.extract_context(email_data)
-            result['context_used'] = context
+            # Context already extracted in Step 0, continue to Step 4
             
             # Step 4: Generate acknowledgment
             acknowledgment = self.bart_generator.generate_acknowledgment(context, detected_tone)
