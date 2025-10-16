@@ -754,6 +754,10 @@ class EmailProcessor:
         print(f"\n[BRAIN] AI PROCESSING EMAIL: {email_data.get('subject', 'No Subject')}")
         print("=" * 60)
         
+        # PERFORMANCE: Track individual AI operations
+        import time
+        base_timing = {}
+        
         # Start with the original email data
         processed_email = email_data.copy()
         
@@ -763,25 +767,34 @@ class EmailProcessor:
             # =============================================================================
             
             print("[NOTE] Step 1: AI Summarization...")
+            step1_start = time.time()
             processed_email['ai_summary'] = self.summarize_email(email_data)
+            base_timing['summarization'] = time.time() - step1_start
+            print(f"⏱️  Summarization took {base_timing['summarization']:.2f}s")
             
             # =============================================================================
             # STEP 2: PRIORITY ANALYSIS
             # =============================================================================
             
             print("[TARGET] Step 2: Priority Analysis...")
+            step2_start = time.time()
             priority_level, priority_score, reasons = self.calculate_priority(email_data)
             processed_email['priority_level'] = priority_level
             processed_email['priority_score'] = priority_score  
             processed_email['priority_reasons'] = reasons
+            base_timing['priority_analysis'] = time.time() - step2_start
+            print(f"⏱️  Priority analysis took {base_timing['priority_analysis']:.2f}s")
             
             # =============================================================================
             # STEP 3: ENTITY EXTRACTION
             # =============================================================================
             
             print("[SEARCH] Step 3: Entity Extraction...")
+            step3_start = time.time()
             extracted_entities = self.extract_entities_and_dates(email_data)
             processed_email['extracted_entities'] = extracted_entities
+            base_timing['entity_extraction'] = time.time() - step3_start
+            print(f"⏱️  Entity extraction took {base_timing['entity_extraction']:.2f}s")
             
             # =============================================================================
             # STEP 4: DRAFT REPLY GENERATION (FOR HIGH PRIORITY)
@@ -789,16 +802,22 @@ class EmailProcessor:
             
             if priority_level in ['High', 'Medium']:
                 print("[EMOJI] Step 4: Draft Reply Generation...")
+                step4_start = time.time()
                 processed_email['draft_reply'] = self.generate_draft_reply(email_data)
+                base_timing['draft_reply'] = time.time() - step4_start
+                print(f"⏱️  Draft reply took {base_timing['draft_reply']:.2f}s")
             else:
                 processed_email['draft_reply'] = None
+                base_timing['draft_reply'] = 0
             
             # =============================================================================
             # STEP 5: ACTIONABLE INSIGHTS
             # =============================================================================
             
             print("[IDEA] Step 5: Generating Insights...")
+            step5_start = time.time()
             processed_email['actionable_insights'] = self._generate_insights(processed_email)
+            base_timing['insights'] = time.time() - step5_start
             
             # =============================================================================
             # STEP 6: AI CONFIDENCE SCORE
@@ -812,9 +831,12 @@ class EmailProcessor:
             
             processed_email['ai_processed_at'] = datetime.now().isoformat()
             processed_email['ai_version'] = "1.0"
+            processed_email['base_ai_timing'] = base_timing  # Add timing data
             
+            total_base_time = sum(base_timing.values())
             print("[OK] AI processing completed successfully!")
             print(f"[TARGET] Result: {priority_level} priority, {len(processed_email['ai_summary'])} char summary")
+            print(f"⏱️  Base processing took {total_base_time:.2f}s total")
             
             return processed_email
             

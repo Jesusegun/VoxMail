@@ -269,30 +269,42 @@ class AdvancedEmailProcessor(EmailProcessor):
         
         print(f"\n[INIT] ADVANCED AI PROCESSING: {email_data.get('subject', 'No Subject')}")
         
+        # PERFORMANCE: Track AI operation times
+        import time
+        ai_timing = {}
+        
         # Start with base processing
+        base_start = time.time()
         processed_email = super().process_email(email_data)
+        ai_timing['base_processing'] = time.time() - base_start
         
         try:
             # Thread context analysis
             if self.advanced_config.thread_analysis_enabled:
                 print("[THREAD] Analyzing thread context...")
+                thread_start = time.time()
                 thread_analysis = self.analyze_thread_context(email_data, thread_context)
                 processed_email['thread_analysis'] = thread_analysis
+                ai_timing['thread_analysis'] = time.time() - thread_start
             
             # Advanced tone analysis
             if self.advanced_config.tone_analysis_enabled:
                 print("[EMOJI] Advanced tone analysis...")
+                tone_start = time.time()
                 tone_analysis = self.analyze_communication_tone(email_data, processed_email)
                 processed_email['tone_analysis'] = tone_analysis
+                ai_timing['tone_analysis'] = time.time() - tone_start
             
             # Advanced reply generation
             print("[EMOJI] Advanced reply generation...")
+            reply_start = time.time()
             advanced_reply = self.generate_advanced_reply(
                 email_data, 
                 processed_email, 
                 thread_context
             )
             processed_email['advanced_reply'] = advanced_reply
+            ai_timing['reply_generation'] = time.time() - reply_start
             
             # Contextual insights generation
             print("[IDEA] Generating contextual insights...")
@@ -315,10 +327,16 @@ class AdvancedEmailProcessor(EmailProcessor):
                     'tone_analysis': self.advanced_config.tone_analysis_enabled,
                     'behavioral_learning': self.advanced_config.behavioral_learning_enabled
                 },
-                'processing_timestamp': datetime.now().isoformat()
+                'processing_timestamp': datetime.now().isoformat(),
+                'ai_timing': ai_timing  # Add timing breakdown
             })
             
-            print("[OK] Advanced AI processing completed successfully!")
+            # PERFORMANCE: Log timing breakdown
+            total_time = sum(ai_timing.values())
+            print(f"[OK] Advanced AI processing completed in {total_time:.2f}s")
+            for operation, duration in ai_timing.items():
+                print(f"  ├─ {operation}: {duration:.2f}s ({duration/total_time*100:.1f}%)")
+            
             return processed_email
             
         except Exception as e:

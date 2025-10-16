@@ -338,10 +338,22 @@ def generate_user_digest(user_id: str) -> Dict[str, Any]:
     - Phase 3: Learning from user edits & confidence adjustments
     """
     
+    # PERFORMANCE INSTRUMENTATION: Start timing
+    digest_start_time = time.time()
+    timing_breakdown = {
+        'total': 0,
+        'fetch_emails': 0,
+        'ai_processing': 0,
+        'per_email': [],
+        'organize_results': 0,
+        'store_data': 0
+    }
+    
     # Load AI components only when actually generating a digest
     _lazy_load_ai_components()
     
     print(f"🚀 Generating daily digest for user {user_id} (Phase 1+2+3 enabled)")
+    print(f"⏱️  [PERFORMANCE] Starting digest generation at {datetime.now().strftime('%H:%M:%S')}")
     
     user = user_manager.get_user(user_id)
     if not user:
@@ -354,12 +366,15 @@ def generate_user_digest(user_id: str) -> Dict[str, Any]:
         
         # Get Gmail service for this user
         print("📧 Fetching recent emails...")
+        fetch_start = time.time()
         gmail_service = user_manager.get_user_gmail_service(user_id)
         
         # Fetch emails using EmailFetcher
         fetcher = EmailFetcher(gmail_service)
         raw_emails = fetcher.get_recent_emails(hours=24, include_read=False)
+        timing_breakdown['fetch_emails'] = time.time() - fetch_start
         print(f"📬 Fetched {len(raw_emails)} emails")
+        print(f"⏱️  [PERFORMANCE] Email fetch took {timing_breakdown['fetch_emails']:.2f}s")
         
         if not raw_emails:
             return {
@@ -375,10 +390,14 @@ def generate_user_digest(user_id: str) -> Dict[str, Any]:
         
         # Process each email with advanced_process_email() (includes Phase 1+2+3)
         print("🧠 Processing emails with AI-enhanced replies and safety checks...")
+        ai_processing_start = time.time()
         processed_emails = []
         
-        for raw_email in raw_emails:
+        for idx, raw_email in enumerate(raw_emails, 1):
             try:
+                # PERFORMANCE: Time each email
+                email_start = time.time()
+                
                 # Gate AI-heavy work to cap concurrency
                 SEMAPHORE.acquire()
                 try:
@@ -386,6 +405,13 @@ def generate_user_digest(user_id: str) -> Dict[str, Any]:
                     result = processor.advanced_process_email(raw_email)
                 finally:
                     SEMAPHORE.release()
+                
+                email_elapsed = time.time() - email_start
+                timing_breakdown['per_email'].append({
+                    'subject': raw_email.get('subject', 'No Subject')[:50],
+                    'time': email_elapsed
+                })
+                print(f"⏱️  [PERFORMANCE] Email {idx}/{len(raw_emails)} processed in {email_elapsed:.2f}s")
                 
                 # Ensure email has an ID for tracking
                 if 'id' not in result:
@@ -409,10 +435,14 @@ def generate_user_digest(user_id: str) -> Dict[str, Any]:
                 print(f"⚠️ Error processing email {raw_email.get('subject', 'Unknown')}: {e}")
                 continue
         
+        timing_breakdown['ai_processing'] = time.time() - ai_processing_start
         print(f"✅ Processed {len(processed_emails)} emails with AI features")
+        print(f"⏱️  [PERFORMANCE] Total AI processing took {timing_breakdown['ai_processing']:.2f}s")
+        print(f"⏱️  [PERFORMANCE] Average per email: {timing_breakdown['ai_processing']/len(processed_emails):.2f}s")
         
         # Organize by priority
         print("📋 Organizing by priority...")
+        organize_start = time.time()
         high_priority = []
         medium_priority = []
         low_priority = []
@@ -434,14 +464,17 @@ def generate_user_digest(user_id: str) -> Dict[str, Any]:
         
         medium_priority.sort(key=lambda x: x.get('reply_confidence', 0), reverse=True)
         low_priority.sort(key=lambda x: x.get('reply_confidence', 0), reverse=True)
+        timing_breakdown['organize_results'] = time.time() - organize_start
         
         # Store email data for button actions
         print("💾 Storing email data for button actions...")
+        store_start = time.time()
         for priority_group in ['high_priority', 'medium_priority', 'low_priority']:
             email_list = {'high_priority': high_priority, 'medium_priority': medium_priority, 'low_priority': low_priority}[priority_group]
             for email in email_list:
                 email_id = email.get('id')
                 digest_manager.store_email_data(user_id, email_id, email)
+        timing_breakdown['store_data'] = time.time() - store_start
         
         # Count Phase 1+2+3 features used
         ai_enhanced_count = sum(1 for e in processed_emails if e.get('reply_method') == 'ai_enhanced')
@@ -462,6 +495,9 @@ def generate_user_digest(user_id: str) -> Dict[str, Any]:
             }
         }
         
+        # PERFORMANCE: Calculate total time
+        timing_breakdown['total'] = time.time() - digest_start_time
+        
         # Add user-specific metadata
         results = {
             'total_emails': len(processed_emails),
@@ -471,13 +507,34 @@ def generate_user_digest(user_id: str) -> Dict[str, Any]:
             'processing_summary': processing_summary,
             'user_id': user_id,
             'user_preferences': user,
-            'generated_at': datetime.now().isoformat()
+            'generated_at': datetime.now().isoformat(),
+            'performance_metrics': timing_breakdown  # Add performance data
         }
         
         print(f"✅ Digest generated successfully with Phase 1+2+3!")
         print(f"📊 Summary: {len(processed_emails)} emails processed")
         print(f"   🔥 High: {len(high_priority)}, ⚡ Medium: {len(medium_priority)}, 💤 Low: {len(low_priority)}")
         print(f"   🤖 AI-enhanced: {ai_enhanced_count}, 🛡️ Safe mode: {safe_mode_count}, ⚠️ Edge cases: {edge_case_count}")
+        
+        # PERFORMANCE REPORT
+        print(f"\n{'='*60}")
+        print(f"⏱️  PERFORMANCE REPORT - User {user_id}")
+        print(f"{'='*60}")
+        print(f"Total Digest Generation Time: {timing_breakdown['total']:.2f}s ({timing_breakdown['total']/60:.2f} minutes)")
+        print(f"  ├─ Email Fetching:       {timing_breakdown['fetch_emails']:.2f}s ({timing_breakdown['fetch_emails']/timing_breakdown['total']*100:.1f}%)")
+        print(f"  ├─ AI Processing:        {timing_breakdown['ai_processing']:.2f}s ({timing_breakdown['ai_processing']/timing_breakdown['total']*100:.1f}%)")
+        print(f"  │  └─ Per Email Avg:     {timing_breakdown['ai_processing']/len(processed_emails):.2f}s")
+        print(f"  ├─ Organizing Results:   {timing_breakdown['organize_results']:.2f}s ({timing_breakdown['organize_results']/timing_breakdown['total']*100:.1f}%)")
+        print(f"  └─ Storing Data:         {timing_breakdown['store_data']:.2f}s ({timing_breakdown['store_data']/timing_breakdown['total']*100:.1f}%)")
+        
+        # Show slowest emails
+        if timing_breakdown['per_email']:
+            slowest = sorted(timing_breakdown['per_email'], key=lambda x: x['time'], reverse=True)[:3]
+            print(f"\n⚠️  Slowest Emails:")
+            for i, email in enumerate(slowest, 1):
+                print(f"  {i}. {email['time']:.2f}s - {email['subject']}")
+        
+        print(f"{'='*60}\n")
         
         return results
         
@@ -1096,6 +1153,7 @@ def oauth_login():
     2. If successful, they're automatically registered as a user
     3. They're redirected to their user settings
     """
+    _lazy_load_ai_components()
     try:
         print("🔐 Starting OAuth authentication for new user...")
         
