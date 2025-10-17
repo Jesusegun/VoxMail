@@ -1,14 +1,14 @@
-# 🤖 VoxMail
+#  VoxMail
 
 An intelligent email management system that delivers AI-powered daily email digests.
 
 ## Features
 
-- 🤖 AI-powered email summarization and prioritization
-- 📧 Beautiful, actionable daily digests
-- 🔐 Secure OAuth authentication
-- 👥 Multi-user support
-- 🌐 Web dashboard for management
+-  AI-powered email summarization and prioritization
+-  Beautiful, actionable daily digests
+-  Secure OAuth authentication
+-  Multi-user support
+-  Web dashboard for management
 
 ## Tech Stack
 
