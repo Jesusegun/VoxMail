@@ -1164,7 +1164,7 @@ def update_settings(user_id: str):
             show_insights_by_default=show_insights_by_default
         )
         
-        return redirect(url_for('user_settings', user_id=user_id))
+        return redirect(url_for('settings_success', user_id=user_id))
         
     except Exception as e:
         print(f"❌ Error updating settings: {e}")
@@ -1172,6 +1172,19 @@ def update_settings(user_id: str):
                              error=str(e),
                              action='update settings',
                              user_id=user_id), 500
+
+@app.route('/settings_success/<user_id>')
+def settings_success(user_id: str):
+    """
+    Show success page after saving settings
+    """
+    user = user_manager.get_user(user_id)
+    if not user:
+        abort(404)
+    
+    return render_template('settings_success.html', 
+                         user=user,
+                         user_id=user_id)
 
 # =============================================================================
 # DIGEST GENERATION AND TESTING ROUTES
