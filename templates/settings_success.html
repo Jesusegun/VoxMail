@@ -65,38 +65,6 @@
             color: #94a3b8;
             margin-bottom: 32px;
         }
-        .settings-summary {
-            background-color: #334155;
-            border-radius: 8px;
-            padding: 24px;
-            margin: 32px 0;
-            text-align: left;
-            border: 1px solid #475569;
-        }
-        .settings-summary h2 {
-            font-size: 18px;
-            font-weight: 600;
-            margin: 0 0 16px;
-            color: #f1f5f9;
-            text-align: center;
-        }
-        .setting-row {
-            display: flex;
-            justify-content: space-between;
-            padding: 12px 0;
-            border-bottom: 1px solid #475569;
-        }
-        .setting-row:last-child {
-            border-bottom: none;
-        }
-        .setting-label {
-            font-weight: 600;
-            color: #cbd5e1;
-        }
-        .setting-value {
-            color: #94a3b8;
-            text-align: right;
-        }
         .next-steps {
             background-color: #1e3a5f;
             border-left: 4px solid #3b82f6;
@@ -113,37 +81,12 @@
         .next-steps strong {
             color: #93c5fd;
         }
-        .btn {
-            display: inline-block;
-            padding: 16px 48px;
-            border: none;
-            border-radius: 8px;
-            font-weight: 600;
-            font-size: 16px;
-            cursor: pointer;
-            text-decoration: none;
-            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-            color: white;
-            margin-top: 24px;
-            transition: transform 0.2s, box-shadow 0.2s;
-        }
-        .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
-        }
-        .btn:active {
-            transform: translateY(0);
-        }
         @media (max-width: 768px) {
             .success-container {
                 padding: 32px 24px;
             }
             h1 {
                 font-size: 24px;
-            }
-            .btn {
-                padding: 14px 32px;
-                font-size: 14px;
             }
         }
     </style>
@@ -155,51 +98,12 @@
         <h1>Settings Saved Successfully!</h1>
         <p class="subtitle">Your preferences have been updated</p>
 
-        <div class="settings-summary">
-            <h2>Your Current Settings</h2>
-            
-            <div class="setting-row">
-                <span class="setting-label">Email Address:</span>
-                <span class="setting-value">{{ user.email }}</span>
-            </div>
-            
-            <div class="setting-row">
-                <span class="setting-label">Digest Time:</span>
-                <span class="setting-value">
-                    {% set hour = user.digest_time %}
-                    {{ '%02d:00'|format(hour) }} 
-                    ({{ '12:00 AM' if hour == 0 else '12:00 PM' if hour == 12 else '%d:00 AM'|format(hour) if hour < 12 else '%d:00 PM'|format(hour-12) }})
-                </span>
-            </div>
-            
-            <div class="setting-row">
-                <span class="setting-label">Timezone:</span>
-                <span class="setting-value">{{ user.timezone }}</span>
-            </div>
-            
-            <div class="setting-row">
-                <span class="setting-label">Weekend Digests:</span>
-                <span class="setting-value">
-                    {% if user.weekend_digests == 'full' %}Full digests
-                    {% elif user.weekend_digests == 'urgent_only' %}Urgent only
-                    {% else %}Disabled{% endif %}
-                </span>
-            </div>
-            
-            {% if user.vacation_mode %}
-            <div class="setting-row">
-                <span class="setting-label">Vacation Mode:</span>
-                <span class="setting-value">Enabled</span>
-            </div>
-            {% endif %}
-        </div>
-
         <div class="next-steps">
             <p><strong>What happens next?</strong></p>
             <p>You'll receive your daily AI-powered email digest at <strong>{{ '%02d:00'|format(user.digest_time) }} {{ user.timezone }}</strong>. Your digest will include smart summaries, priority analysis, and AI-generated reply suggestions.</p>
         </div>
 
-        <button onclick="window.close()" class="btn">Close This Page</button>
+        <p style="margin-top: 32px; color: #94a3b8; font-size: 14px;">You can close this page now.</p>
     </div>
 </body>
 </html>
