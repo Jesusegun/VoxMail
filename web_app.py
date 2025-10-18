@@ -1380,8 +1380,8 @@ def oauth_callback():
         # Handle errors (user denied access)
         if error:
             print(f"❌ OAuth error from Google: {error}")
-            return render_template('action_error.html', 
-                                 error=f"OAuth authorization denied: {error}")
+            # Show friendly permissions explanation page instead of error
+            return render_template('permissions_needed.html'), 403
         
         # Validate required parameters
         if not auth_code or not state:
@@ -1404,6 +1404,11 @@ def oauth_callback():
         print(f"❌ OAuth callback validation failed: {e}")
         return render_template('action_error.html', 
                              error=f"OAuth validation failed: {str(e)}"), 403
+    
+    except PermissionError as e:
+        # User didn't grant required scopes
+        print(f"❌ Missing required permissions: {e}")
+        return render_template('permissions_needed.html'), 403
     
     except Exception as e:
         print(f"❌ OAuth callback failed: {e}")

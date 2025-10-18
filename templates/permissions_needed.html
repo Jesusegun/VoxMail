@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Permissions Needed - VoxMail</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #1a1f3a 0%, #2d1b4e 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 16px;
+            padding: 48px;
+            max-width: 600px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            text-align: center;
+        }
+
+        .icon {
+            font-size: 64px;
+            margin-bottom: 24px;
+            animation: gentlePulse 2s ease-in-out infinite;
+        }
+
+        @keyframes gentlePulse {
+            0%, 100% { transform: scale(1); opacity: 0.9; }
+            50% { transform: scale(1.05); opacity: 1; }
+        }
+
+        h1 {
+            font-size: 28px;
+            color: #1a1f3a;
+            margin-bottom: 16px;
+            font-weight: 600;
+        }
+
+        .subtitle {
+            font-size: 18px;
+            color: #5a6c7d;
+            margin-bottom: 32px;
+            line-height: 1.5;
+        }
+
+        .permissions-box {
+            background: #f8f9fa;
+            border-left: 4px solid #667eea;
+            border-radius: 8px;
+            padding: 24px;
+            margin-bottom: 32px;
+            text-align: left;
+        }
+
+        .permissions-box h2 {
+            font-size: 18px;
+            color: #1a1f3a;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .permission-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            margin-bottom: 16px;
+            padding: 12px;
+            background: white;
+            border-radius: 6px;
+        }
+
+        .permission-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .permission-icon {
+            font-size: 24px;
+            flex-shrink: 0;
+        }
+
+        .permission-text {
+            flex: 1;
+        }
+
+        .permission-title {
+            font-weight: 600;
+            color: #1a1f3a;
+            margin-bottom: 4px;
+            font-size: 15px;
+        }
+
+        .permission-description {
+            font-size: 14px;
+            color: #5a6c7d;
+            line-height: 1.4;
+        }
+
+        .reassurance {
+            background: #e8f5e9;
+            border-left: 4px solid #4caf50;
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 32px;
+            text-align: left;
+        }
+
+        .reassurance-title {
+            font-weight: 600;
+            color: #2e7d32;
+            margin-bottom: 8px;
+            font-size: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .reassurance-text {
+            font-size: 14px;
+            color: #1b5e20;
+            line-height: 1.5;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 14px 32px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s ease;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #e0e0e0;
+            color: #5a6c7d;
+        }
+
+        .btn-secondary:hover {
+            background: #d0d0d0;
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 32px 24px;
+            }
+
+            h1 {
+                font-size: 24px;
+            }
+
+            .subtitle {
+                font-size: 16px;
+            }
+
+            .button-group {
+                flex-direction: column;
+            }
+
+            .btn {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="icon">🔐</div>
+        <h1>VoxMail Needs Your Permission</h1>
+        <p class="subtitle">To create your personalized email digest, we need access to both read and send permissions</p>
+
+        <div class="permissions-box">
+            <h2>📋 Why We Need These Permissions</h2>
+            
+            <div class="permission-item">
+                <div class="permission-icon">📧</div>
+                <div class="permission-text">
+                    <div class="permission-title">Read Permission</div>
+                    <div class="permission-description">To analyze your emails and create intelligent summaries with priority rankings</div>
+                </div>
+            </div>
+
+            <div class="permission-item">
+                <div class="permission-icon">📤</div>
+                <div class="permission-text">
+                    <div class="permission-title">Send Permission</div>
+                    <div class="permission-description">To send you the daily digest email with your personalized summaries and smart reply suggestions</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="reassurance">
+            <div class="reassurance-title">
+                <span>✅</span> Your Control, Your Privacy
+            </div>
+            <div class="reassurance-text">
+                <strong>VoxMail will NEVER automatically send emails on your behalf.</strong> We only send your daily digest to you. Every reply or action requires your explicit approval. You're always in control.
+            </div>
+        </div>
+
+        <div class="button-group">
+            <a href="/oauth_login" class="btn btn-primary">Try Again</a>
+            <button onclick="window.close()" class="btn btn-secondary">Close This Page</button>
+        </div>
+    </div>
+</body>
+</html>
+

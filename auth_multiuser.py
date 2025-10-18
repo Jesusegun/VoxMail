@@ -190,6 +190,18 @@ def handle_oauth_callback(
         creds = flow.credentials
         print("✅ Access token obtained successfully")
         
+        # Validate that we have both required scopes
+        granted_scopes = creds.scopes if hasattr(creds, 'scopes') and creds.scopes else []
+        print(f"📋 Granted scopes: {granted_scopes}")
+        
+        required_scopes = set(SCOPES)
+        granted_scopes_set = set(granted_scopes)
+        
+        if not required_scopes.issubset(granted_scopes_set):
+            missing_scopes = required_scopes - granted_scopes_set
+            print(f"❌ Missing required scopes: {missing_scopes}")
+            raise PermissionError("Missing required Gmail permissions. Both read and send permissions are needed.")
+        
         # Save credentials to user-specific token file
         print(f"💾 Saving token to {token_path}...")
         os.makedirs(os.path.dirname(token_path), exist_ok=True)
