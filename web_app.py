@@ -458,17 +458,22 @@ class DigestDataManager:
             print(f"❌ Error saving digest data: {e}")
     
     def store_email_data(self, user_id: str, email_id: str, email_data: Dict[str, Any]):
-        """Store processed email data for button actions"""
+        """Store processed email data for button actions - PRESERVES existing data"""
         
         if user_id not in self.digest_data:
             self.digest_data[user_id] = {}
         
-        # Store the complete email data from your AI system
-        self.digest_data[user_id][email_id] = {
-            'email_data': email_data,
-            'stored_at': datetime.now().isoformat(),
-            'actions_taken': []
-        }
+        # Only store if email doesn't already exist (preserve existing data)
+        if email_id not in self.digest_data[user_id]:
+            # Store the complete email data from your AI system
+            self.digest_data[user_id][email_id] = {
+                'email_data': email_data,
+                'stored_at': datetime.now().isoformat(),
+                'actions_taken': []
+            }
+            print(f"📧 Stored new email data: {email_id}")
+        else:
+            print(f"📧 Email data already exists, preserving: {email_id}")
         
         self._save_data()
     
