@@ -1110,71 +1110,125 @@ class BARTAcknowledgmentGenerator:
         return acknowledgment
     
     def _build_natural_acknowledgment(self, context: Dict, tone: str) -> str:
-        """Build natural-sounding acknowledgment from VALIDATED context only"""
-        parts = []
+        """Build human-sounding acknowledgment with natural language"""
+        import random
         
-        # Main topic acknowledgment
-        topic = context.get('main_topic', 'your email')
-        category = context.get('email_category', 'general')
-        
-        # Opening varies by tone and category
-        if tone == 'formal':
-            parts.append(f"Thank you for your email regarding {topic}.")
-        elif tone == 'business':
-            parts.append(f"Thanks for your email about {topic}.")
-        else:
-            parts.append(f"Thanks for reaching out about {topic}.")
-        
-        # Build acknowledgment components - CRITICAL FIX: Only mention if validated and non-empty
-        acknowledgments = []
-        
-        # Questions - ONLY if list exists AND has items AND extraction was successful
-        questions = context.get('questions', [])
-        if questions and len(questions) > 0 and context.get('extracted_successfully', False):
-            q_count = len(questions)
-            if q_count == 1:
-                acknowledgments.append("your question")
-            else:
-                acknowledgments.append(f"your {q_count} questions")
-        
-        # Attachments - ONLY if truly present
+        sender_name = context.get('sender_name', 'there')
+        subject = context.get('subject', '')
+        urgency = context.get('urgency_level', 'normal')
         has_attachments = context.get('has_attachments', False)
-        if has_attachments:
-            count = context.get('attachment_count', 0)
-            if count > 0:  # Safety check
-                if count == 1:
-                    acknowledgments.append("the attached document")
-                else:
-                    acknowledgments.append(f"the {count} attached documents")
-        
-        # Action items - ONLY if list exists AND has validated items
-        action_items = context.get('action_items', [])
-        if action_items and len(action_items) > 0 and context.get('extracted_successfully', False):
-            action_count = len(action_items)
-            if action_count == 1:
-                acknowledgments.append("the action item you mentioned")
-            else:
-                acknowledgments.append(f"the {action_count} action items")
-        
-        # Deadline - ONLY if list exists AND has items
+        questions = context.get('questions', [])
         deadlines = context.get('deadlines', [])
-        if deadlines and len(deadlines) > 0:
+        
+        # Determine relationship for greeting style
+        relationship = context.get('relationship_context', 'professional')
+        
+        # Natural greeting variations
+        if relationship == 'friend':
+            greetings = ["Hey", "Hi", "Hey there"]
+        elif relationship == 'colleague':
+            greetings = ["Hi", "Hey", "Hi there"]
+        elif tone == 'formal':
+            greetings = ["Hi", "Hello"]
+        else:
+            greetings = ["Hi", "Hey", "Hi there"]
+        
+        greeting = f"{random.choice(greetings)} {sender_name},"
+        
+        # Natural opening variations
+        openings = [
+            "Got it",
+            "Thanks for sending this over", 
+            "Thanks",
+            "Perfect timing",
+            "Appreciate this",
+            "Got your email",
+            "Thanks for reaching out"
+        ]
+        
+        # Natural action phrases based on content
+        if questions:
+            actions = [
+                "I'll get back to you on those questions",
+                "Let me look into those questions for you",
+                "I'll check on that and get back to you",
+                "I'll find out and let you know"
+            ]
+        elif has_attachments:
+            actions = [
+                "I'll take a look at the doc",
+                "Let me review what you sent",
+                "I'll check out the attachment",
+                "I'll go through the file"
+            ]
+        elif urgency in ['urgent', 'high']:
+            actions = [
+                "I'll get on this right away",
+                "I'll prioritize this",
+                "I'll handle this ASAP",
+                "I'll take care of this quickly"
+            ]
+        else:
+            actions = [
+                "I'll take a look",
+                "Let me check on that",
+                "I'll review this",
+                "I'll get on this",
+                "Let me look into this"
+            ]
+        
+        # Add timeline context naturally
+        timeline_phrases = []
+        if deadlines:
             deadline = deadlines[0]
-            if deadline:  # Extra safety check
-                acknowledgments.append(f"the {deadline} deadline")
+            timeline_phrases = [
+                f"before {deadline}",
+                f"by {deadline}",
+                f"in time for {deadline}"
+            ]
+        elif urgency in ['urgent', 'high']:
+            timeline_phrases = [
+                "soon",
+                "asap",
+                "quickly"
+            ]
+        else:
+            timeline_phrases = [
+                "soon",
+                "shortly",
+                "in a bit"
+            ]
         
-        # Combine acknowledgments naturally - ONLY if we have validated items
-        if acknowledgments:
-            if len(acknowledgments) == 1:
-                parts.append(f"I see {acknowledgments[0]}.")
-            elif len(acknowledgments) == 2:
-                parts.append(f"I see {acknowledgments[0]} and {acknowledgments[1]}.")
-            else:
-                ack_text = ", ".join(acknowledgments[:-1]) + f", and {acknowledgments[-1]}"
-                parts.append(f"I see {ack_text}.")
-        # If no specific acknowledgments, just keep the opening (topic-only)
+        # Natural closings
+        if relationship == 'friend':
+            closings = ["Thanks!", "Talk soon!", "Cheers!", "Thanks!"]
+        elif relationship == 'colleague':
+            closings = ["Thanks!", "Best", "Talk soon", "Thanks"]
+        else:
+            closings = ["Thanks", "Best", "Thanks!", "Best regards"]
         
-        return " ".join(parts)
+        # Build the reply
+        parts = [greeting]
+        
+        # Add opening
+        opening = random.choice(openings)
+        parts.append(opening + ".")
+        
+        # Add action with timeline
+        action = random.choice(actions)
+        timeline = random.choice(timeline_phrases)
+        
+        # Combine action and timeline naturally
+        if timeline in ["soon", "asap", "quickly"]:
+            parts.append(f"{action} {timeline}.")
+        else:
+            parts.append(f"{action} {timeline}.")
+        
+        # Add closing
+        closing = random.choice(closings)
+        parts.append(closing)
+        
+        return "\n\n".join(parts)
     
     def generate_no_reply_message(self, email_intent: str, context: Dict) -> Optional[str]:
         """

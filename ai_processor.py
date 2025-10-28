@@ -1236,31 +1236,103 @@ class EmailProcessor:
         return context
     
     def _generate_meeting_reply(self, sender_name: str, context: Dict) -> str:
-        """Generate meeting-related reply"""
-        return f"Hi {sender_name},\n\nThank you for the meeting request. I'll check my calendar and get back to you shortly with my availability.\n\nBest regards"
+        """Generate natural meeting-related reply"""
+        import random
+        
+        greetings = ["Hi", "Hey", "Hi there"]
+        openings = ["Got it", "Thanks", "Perfect", "Sounds good"]
+        actions = ["I'll check my calendar", "Let me look at my schedule", "I'll see what works"]
+        closings = ["Thanks", "Talk soon", "Best"]
+        
+        greeting = random.choice(greetings)
+        opening = random.choice(openings)
+        action = random.choice(actions)
+        closing = random.choice(closings)
+        
+        return f"{greeting} {sender_name},\n\n{opening} - {action} and get back to you.\n\n{closing}"
     
     def _generate_urgent_reply(self, sender_name: str, context: Dict) -> str:
-        """Generate urgent reply"""
-        return f"Hi {sender_name},\n\nI've received your urgent message and will prioritize this. I'll respond with a detailed update by end of day.\n\nThanks for bringing this to my attention.\n\nBest regards"
+        """Generate natural urgent reply"""
+        import random
+        
+        greetings = ["Hi", "Hey"]
+        openings = ["Got it", "Thanks for flagging this", "I see this is urgent"]
+        actions = ["I'll get on this right away", "I'll prioritize this", "I'll handle this ASAP"]
+        closings = ["Thanks", "Talk soon"]
+        
+        greeting = random.choice(greetings)
+        opening = random.choice(openings)
+        action = random.choice(actions)
+        closing = random.choice(closings)
+        
+        return f"{greeting} {sender_name},\n\n{opening}. {action}.\n\n{closing}"
     
     def _generate_question_reply(self, sender_name: str, context: Dict) -> str:
-        """Generate question-response reply"""
-        return f"Hi {sender_name},\n\nThank you for your question. I'll review the details and provide you with a comprehensive response shortly.\n\nBest regards"
+        """Generate natural question-response reply"""
+        import random
+        
+        greetings = ["Hi", "Hey", "Hi there"]
+        openings = ["Got it", "Thanks", "Good question"]
+        actions = ["I'll look into that", "Let me check on that", "I'll find out and get back to you"]
+        closings = ["Thanks", "Talk soon", "Best"]
+        
+        greeting = random.choice(greetings)
+        opening = random.choice(openings)
+        action = random.choice(actions)
+        closing = random.choice(closings)
+        
+        return f"{greeting} {sender_name},\n\n{opening}. {action}.\n\n{closing}"
     
     def _generate_thank_you_reply(self, sender_name: str, context: Dict) -> str:
-        """Generate thank you reply"""
-        return f"Hi {sender_name},\n\nYou're very welcome! I'm glad I could help. Please don't hesitate to reach out if you need anything else.\n\nBest regards"
+        """Generate natural thank you reply"""
+        import random
+        
+        greetings = ["Hi", "Hey", "Hi there"]
+        responses = ["You're welcome!", "Happy to help!", "No problem!", "Glad I could help!"]
+        closings = ["Thanks", "Talk soon", "Best"]
+        
+        greeting = random.choice(greetings)
+        response = random.choice(responses)
+        closing = random.choice(closings)
+        
+        return f"{greeting} {sender_name},\n\n{response}\n\n{closing}"
     
     def _generate_info_request_reply(self, sender_name: str, context: Dict) -> str:
-        """Generate information request reply"""
-        return f"Hi {sender_name},\n\nI'll gather the requested information and send it to you shortly. If you need anything specific or have a preferred format, please let me know.\n\nBest regards"
+        """Generate natural information request reply"""
+        import random
+        
+        greetings = ["Hi", "Hey", "Hi there"]
+        openings = ["Got it", "Thanks", "Perfect"]
+        actions = ["I'll get that info for you", "Let me gather that", "I'll pull that together"]
+        closings = ["Thanks", "Talk soon", "Best"]
+        
+        greeting = random.choice(greetings)
+        opening = random.choice(openings)
+        action = random.choice(actions)
+        closing = random.choice(closings)
+        
+        return f"{greeting} {sender_name},\n\n{opening}. {action}.\n\n{closing}"
     
     def _generate_default_reply(self, sender_name: str, priority_level: str) -> str:
-        """Generate default professional reply"""
+        """Generate natural default reply"""
+        import random
+        
+        greetings = ["Hi", "Hey", "Hi there"]
+        openings = ["Got it", "Thanks", "Got your email"]
+        
         if priority_level == "High":
-            return f"Hi {sender_name},\n\nThank you for your email. I've noted the urgency and will address this promptly. I'll get back to you with a detailed response soon.\n\nBest regards"
+            actions = ["I'll get on this right away", "I'll prioritize this", "I'll handle this quickly"]
         else:
-            return f"Hi {sender_name},\n\nThank you for your email. I'll review the details and respond accordingly.\n\nBest regards"
+            actions = ["I'll take a look", "Let me check on that", "I'll get back to you"]
+        
+        closings = ["Thanks", "Talk soon", "Best"]
+        
+        greeting = random.choice(greetings)
+        opening = random.choice(openings)
+        action = random.choice(actions)
+        closing = random.choice(closings)
+        
+        return f"{greeting} {sender_name},\n\n{opening}. {action}.\n\n{closing}"
     
     def _generate_insights(self, processed_email: Dict[str, Any]) -> List[str]:
         """Generate actionable insights from processed email"""
