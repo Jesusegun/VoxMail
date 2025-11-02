@@ -1194,9 +1194,39 @@ def edit_reply(user_id: str, email_id: str):
                     print(f"❌ Traceback: {traceback.format_exc()}")
                     abort(404, f"Email data not found and Gmail fetch failed: {str(e)}")
             else:
-                # First attempt - show loading page
-                print(f"⏳ Email {email_id} not in storage, showing loading page...")
+                # First attempt - show loading page and start background fetch
+                print(f"⏳ Email {email_id} not in storage, showing loading page and starting background fetch...")
                 redirect_url = request.url + ('&' if '?' in request.url else '?') + 'processing=true'
+                
+                # Start background fetch thread so email is ready when JavaScript polls
+                import threading
+                def fetch_email_in_background():
+                    try:
+                        print(f"🔄 Background fetch started: Fetching email {email_id} from Gmail for user {user_id}")
+                        _lazy_load_ai_components()
+                        gmail_service = user_manager.get_user_gmail_service(user_id)
+                        from email_fetcher import EmailFetcher
+                        fetcher = EmailFetcher(gmail_service)
+                        print(f"📧 Fetching email details from Gmail API...")
+                        email_details = fetcher.get_email_details(email_id)
+                        if email_details:
+                            print(f"✅ Email fetched from Gmail, processing with AI...")
+                            from ai_processor import EmailProcessor
+                            processor = EmailProcessor()
+                            email_data = processor.process_email(email_details)
+                            digest_manager.store_email_data(user_id, email_id, email_data)
+                            print(f"✅ Email {email_id} processed and stored successfully")
+                        else:
+                            print(f"❌ Email {email_id} not found in Gmail")
+                    except Exception as e:
+                        import traceback
+                        print(f"❌ Error in background fetch: {e}")
+                        print(f"❌ Traceback: {traceback.format_exc()}")
+                
+                # Start background thread
+                fetch_thread = threading.Thread(target=fetch_email_in_background, daemon=True)
+                fetch_thread.start()
+                
                 return render_template('loading_email.html', redirect_url=redirect_url)
         
         # Prepare data for edit template

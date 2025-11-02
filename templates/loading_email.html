@@ -78,14 +78,23 @@
         }
     </style>
     <script>
+        // Debug: Log that script is running
+        console.log('Loading email page script started');
+        
         // Auto-refresh every 3 seconds to check if processing is complete
         let attempts = 0;
         const maxAttempts = 50; // ~2.5 minutes max wait time (50 * 3s)
         
+        // Get redirect URL from template
+        const redirectUrl = '{{ redirect_url }}';
+        console.log('Redirect URL:', redirectUrl);
+        
         function checkStatus() {
             attempts++;
+            console.log('Polling attempt ' + attempts + ' of ' + maxAttempts);
             
             if (attempts >= maxAttempts) {
+                console.log('Max attempts reached');
                 document.querySelector('.message').textContent = 'Taking longer than expected. Please refresh the page or try again.';
                 document.querySelector('.submessage').style.display = 'none';
                 return;
@@ -93,9 +102,9 @@
             
             // Try to fetch the same page - if it returns 200, email is ready
             // Add cache-busting parameter to ensure fresh request
-            const redirectUrl = '{{ redirect_url }}';
             const separator = redirectUrl.includes('?') ? '&' : '?';
             const url = redirectUrl + separator + '_t=' + Date.now();
+            console.log('Fetching URL:', url);
             
             fetch(url, { 
                 method: 'GET',
@@ -107,10 +116,12 @@
                 cache: 'no-store'
             })
                 .then(response => {
-                    console.log('Poll attempt ' + attempts + ': Status ' + response.status);
+                    console.log('Poll attempt ' + attempts + ': Status ' + response.status + ', OK: ' + response.ok);
                     // Check response status and content length to determine if it's the loading page or actual content
                     return response.clone().text().then(text => {
-                        const isActualPage = text.length > 5000 || text.includes('edit_reply') || text.includes('Edit Reply') || text.includes('email_details');
+                        console.log('Response text length:', text.length);
+                        const isActualPage = text.length > 5000 || text.includes('edit_reply') || text.includes('Edit Reply') || text.includes('email_details') || text.includes('Email Details');
+                        console.log('Is actual page:', isActualPage);
                         
                         if (response.ok && isActualPage) {
                             // Email is ready, redirect immediately
@@ -118,23 +129,24 @@
                             window.location.href = redirectUrl;
                         } else if (response.status === 404 || response.status === 500) {
                             // Error occurred, wait and retry
-                            console.log('Error status, retrying...');
+                            console.log('Error status, retrying in 3 seconds...');
                             setTimeout(checkStatus, 3000);
                         } else {
                             // Still processing (likely still showing loading page), wait and retry
-                            console.log('Still processing, retrying...');
+                            console.log('Still processing (got loading page), retrying in 3 seconds...');
                             setTimeout(checkStatus, 3000);
                         }
                     });
                 })
                 .catch(error => {
                     // Network error, retry
-                    console.log('Network error, retrying...', error);
+                    console.error('Network error, retrying in 3 seconds...', error);
                     setTimeout(checkStatus, 3000);
                 });
         }
         
         // Start checking after initial 2 second delay (give server time to start processing)
+        console.log('Starting poll in 2 seconds...');
         setTimeout(checkStatus, 2000);
     </script>
 </head>
