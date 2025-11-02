@@ -1159,6 +1159,7 @@ def edit_reply(user_id: str, email_id: str):
     Shows edit interface with AI-generated reply and alternatives
     """
     
+    print(f"✏️ Edit reply request: User {user_id}, Email {email_id}, Processing param: {request.args.get('processing')}")
     
     try:
         # Get the stored email data
@@ -1169,24 +1170,32 @@ def edit_reply(user_id: str, email_id: str):
             # Check if this is a retry (has ?processing=true parameter)
             if request.args.get('processing') == 'true':
                 # This is a retry after showing loading page - attempt to fetch
+                print(f"🔄 Processing mode: Fetching email {email_id} from Gmail for user {user_id}")
                 try:
                     _lazy_load_ai_components()
                     gmail_service = user_manager.get_user_gmail_service(user_id)
                     from email_fetcher import EmailFetcher
                     fetcher = EmailFetcher(gmail_service)
+                    print(f"📧 Fetching email details from Gmail API...")
                     email_details = fetcher.get_email_details(email_id)
                     if email_details:
+                        print(f"✅ Email fetched from Gmail, processing with AI...")
                         from ai_processor import EmailProcessor
                         processor = EmailProcessor()
                         email_data = processor.process_email(email_details)
                         digest_manager.store_email_data(user_id, email_id, email_data)
+                        print(f"✅ Email {email_id} processed and stored successfully")
                     else:
+                        print(f"❌ Email {email_id} not found in Gmail")
                         abort(404, "Email data not found and could not be fetched from Gmail")
                 except Exception as e:
+                    import traceback
                     print(f"❌ Error fetching email from Gmail: {e}")
+                    print(f"❌ Traceback: {traceback.format_exc()}")
                     abort(404, f"Email data not found and Gmail fetch failed: {str(e)}")
             else:
                 # First attempt - show loading page
+                print(f"⏳ Email {email_id} not in storage, showing loading page...")
                 redirect_url = request.url + ('&' if '?' in request.url else '?') + 'processing=true'
                 return render_template('loading_email.html', redirect_url=redirect_url)
         
