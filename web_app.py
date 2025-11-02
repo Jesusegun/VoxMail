@@ -592,9 +592,12 @@ class DigestDataManager:
     def get_email_data(self, user_id: str, email_id: str) -> Optional[Dict[str, Any]]:
         """Get stored email data - reloads from disk if file was modified or email not found"""
         
+        print(f"🔍 get_email_data called: user_id={user_id}, email_id={email_id}")
+        
         # First, check in-memory data
         user_data = self.digest_data.get(user_id, {})
         email_entry = user_data.get(email_id) if user_data else None
+        print(f"   Initial check - user_data exists: {user_data is not None}, email_entry found: {email_entry is not None}")
         
         # If email not found in memory, force reload from disk (fixes old email issue)
         if not email_entry:
@@ -602,10 +605,13 @@ class DigestDataManager:
             try:
                 current_mtime = self._get_file_mtime()
                 fresh_data = self._load_data()
+                print(f"   Loaded fresh data from disk. File has {len(fresh_data)} users")
+                print(f"   Available user_ids: {list(fresh_data.keys())[:5]}")  # Show first 5
                 
                 # Replace in-memory data with fresh data from disk
                 # This ensures we have the latest data for the lookup
                 if user_id in fresh_data:
+                    print(f"   ✅ User {user_id} found in fresh data")
                     if email_id in fresh_data[user_id]:
                         email_entry = fresh_data[user_id][email_id]
                         # Update in-memory cache
@@ -675,7 +681,9 @@ class DigestDataManager:
                                 print(f"   Sample email_ids for {uid}: {sample_ids}")
                         return None
             except Exception as e:
+                import traceback
                 print(f"⚠️  Error loading data from disk: {e}")
+                print(f"   Traceback: {traceback.format_exc()}")
                 return None
         else:
             # Email found in memory, but still check if file was updated
@@ -1098,6 +1106,10 @@ def edit_reply(user_id: str, email_id: str):
         # Get the stored email data
         email_data = digest_manager.get_email_data(user_id, email_id)
         if not email_data:
+            print(f"❌ Email data not found for user_id={user_id}, email_id={email_id}")
+            print(f"   Checking if digest_data has any users...")
+            print(f"   Total users in memory: {len(digest_manager.digest_data)}")
+            print(f"   Users in memory: {list(digest_manager.digest_data.keys())[:5]}")
             abort(404, "Email data not found")
         
         # Prepare data for edit template
