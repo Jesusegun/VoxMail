@@ -24,6 +24,8 @@ import json
 import uuid
 import base64
 import time
+import fcntl
+import shutil
 from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional
 from functools import wraps
@@ -31,6 +33,13 @@ from flask import Flask, render_template, request, redirect, url_for, jsonify, a
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from ai_runtime import get_advanced_processor, SEMAPHORE
+
+# Cross-platform file locking
+try:
+    import msvcrt  # Windows
+    _has_msvcrt = True
+except ImportError:
+    _has_msvcrt = False
 
 # Lazy import globals - AI components loaded only when needed
 authenticate_gmail = None
@@ -432,33 +441,141 @@ class DigestDataManager:
     - Processed email data from AI system
     - Generated replies for button actions
     - User interaction history for learning
+    
+    FIXES:
+    - Reloads data from disk before critical operations (prevents stale data)
+    - Uses file locking to prevent race conditions in concurrent writes
     """
     
     def __init__(self):
         self.data_file = DIGEST_DATA_FILE
+        self.lock_file = f"{self.data_file}.lock"
         self.digest_data = self._load_data()
+        self._file_mtime = self._get_file_mtime()
+    
+    def _get_file_mtime(self) -> float:
+        """Get file modification time"""
+        try:
+            return os.path.getmtime(self.data_file) if os.path.exists(self.data_file) else 0
+        except:
+            return 0
+    
+    def _acquire_lock(self, file_handle):
+        """Acquire file lock (cross-platform)"""
+        if _has_msvcrt:
+            # Windows
+            msvcrt.locking(file_handle.fileno(), msvcrt.LK_LOCK, 1)
+        else:
+            # Unix/Linux
+            try:
+                fcntl.flock(file_handle.fileno(), fcntl.LOCK_EX)
+            except (IOError, OSError):
+                pass  # Lock not supported on this system
+    
+    def _release_lock(self, file_handle):
+        """Release file lock (cross-platform)"""
+        if _has_msvcrt:
+            # Windows
+            try:
+                msvcrt.locking(file_handle.fileno(), msvcrt.LK_UNLCK, 1)
+            except:
+                pass
+        else:
+            # Unix/Linux
+            try:
+                fcntl.flock(file_handle.fileno(), fcntl.LOCK_UN)
+            except (IOError, OSError):
+                pass
+    
+    def _should_reload(self) -> bool:
+        """Check if file has been modified since last load"""
+        current_mtime = self._get_file_mtime()
+        if current_mtime > self._file_mtime:
+            return True
+        return False
+    
+    def _reload_if_needed(self):
+        """Reload data from disk if file has been modified (fixes stale data issue)"""
+        if self._should_reload():
+            print(f"🔄 Reloading digest data (file modified)")
+            try:
+                current_mtime = self._get_file_mtime()
+                new_data = self._load_data()
+                # Merge new data, preserving any in-memory changes
+                for user_id, user_data in new_data.items():
+                    if user_id not in self.digest_data:
+                        self.digest_data[user_id] = {}
+                    if isinstance(user_data, dict):
+                        for key, value in user_data.items():
+                            if key == 'digest_history':
+                                # Merge digest history
+                                if 'digest_history' not in self.digest_data[user_id]:
+                                    self.digest_data[user_id]['digest_history'] = []
+                                existing_entries = {e.get('sent_at'): e for e in self.digest_data[user_id].get('digest_history', [])}
+                                for entry in value:
+                                    if entry.get('sent_at') not in existing_entries:
+                                        self.digest_data[user_id]['digest_history'].append(entry)
+                            elif key not in self.digest_data[user_id]:
+                                # Only add if doesn't exist (preserve existing email data)
+                                self.digest_data[user_id][key] = value
+                self._file_mtime = current_mtime
+                print(f"✅ Digest data reloaded and merged")
+            except Exception as e:
+                print(f"⚠️  Error reloading data: {e}")
     
     def _load_data(self) -> Dict[str, Any]:
-        """Load digest data from file"""
+        """Load digest data from file with locking"""
         try:
             if os.path.exists(self.data_file):
                 with open(self.data_file, 'r') as f:
-                    return json.load(f)
+                    self._acquire_lock(f)
+                    try:
+                        data = json.load(f)
+                    finally:
+                        self._release_lock(f)
+                    return data
             return {}
         except Exception as e:
             print(f"❌ Error loading digest data: {e}")
             return {}
     
     def _save_data(self):
-        """Save digest data to file"""
+        """Save digest data to file with atomic write and locking (prevents race conditions)"""
         try:
-            with open(self.data_file, 'w') as f:
-                json.dump(self.digest_data, f, indent=2, default=str)
+            # Write to temporary file first (atomic write)
+            temp_file = f"{self.data_file}.tmp"
+            with open(temp_file, 'w') as f:
+                self._acquire_lock(f)
+                try:
+                    json.dump(self.digest_data, f, indent=2, default=str)
+                    f.flush()
+                    os.fsync(f.fileno())  # Ensure data is written to disk
+                finally:
+                    self._release_lock(f)
+            
+            # Atomically replace the original file
+            shutil.move(temp_file, self.data_file)
+            self._file_mtime = self._get_file_mtime()
+            
         except Exception as e:
             print(f"❌ Error saving digest data: {e}")
+            # Clean up temp file if it exists
+            try:
+                if os.path.exists(temp_file):
+                    os.remove(temp_file)
+            except:
+                pass
     
     def store_email_data(self, user_id: str, email_id: str, email_data: Dict[str, Any]):
         """Store processed email data for button actions - PRESERVES existing data"""
+        
+        # FIX: Reload data if file has been modified (fixes stale data issue)
+        self._reload_if_needed()
+        
+        # Validate email_id
+        if not email_id:
+            print(f"⚠️  Warning: email_id is None or empty, generating UUID")
+            email_id = str(uuid.uuid4())
         
         if user_id not in self.digest_data:
             self.digest_data[user_id] = {}
@@ -478,11 +595,39 @@ class DigestDataManager:
         self._save_data()
     
     def get_email_data(self, user_id: str, email_id: str) -> Optional[Dict[str, Any]]:
-        """Get stored email data"""
-        return self.digest_data.get(user_id, {}).get(email_id, {}).get('email_data')
+        """Get stored email data - reloads from disk if file was modified"""
+        # FIX: Reload data if file has been modified (fixes stale data issue)
+        self._reload_if_needed()
+        
+        # FIX #4: Add defensive checks for old data structures (backward compatibility)
+        user_data = self.digest_data.get(user_id, {})
+        if not user_data:
+            return None
+        
+        email_entry = user_data.get(email_id)
+        if not email_entry:
+            return None
+        
+        # Handle both old and new data structures
+        # New structure: {'email_data': {...}, 'stored_at': ..., 'actions_taken': [...]}
+        # Old structure: email_entry IS the email_data directly
+        if isinstance(email_entry, dict):
+            if 'email_data' in email_entry:
+                # New structure
+                return email_entry['email_data']
+            else:
+                # Old structure - email_entry is the email data itself
+                # Check if it looks like email data (has common email fields)
+                if any(key in email_entry for key in ['sender_email', 'subject', 'body', 'ai_summary']):
+                    return email_entry
+        
+        return None
     
     def record_action(self, user_id: str, email_id: str, action: str):
         """Record user action for learning"""
+        # FIX: Reload data if file has been modified
+        self._reload_if_needed()
+        
         if user_id in self.digest_data and email_id in self.digest_data[user_id]:
             self.digest_data[user_id][email_id]['actions_taken'].append({
                 'action': action,
@@ -492,6 +637,9 @@ class DigestDataManager:
     
     def record_digest_sent(self, user_id: str, email_count: int):
         """Record when a digest is sent"""
+        # FIX: Reload data if file has been modified
+        self._reload_if_needed()
+        
         if user_id not in self.digest_data:
             self.digest_data[user_id] = {}
         
@@ -655,6 +803,11 @@ def generate_user_digest(user_id: str) -> Dict[str, Any]:
             email_list = {'high_priority': high_priority, 'medium_priority': medium_priority, 'low_priority': low_priority}[priority_group]
             for email in email_list:
                 email_id = email.get('id')
+                # FIX #3: Ensure email_id is never None (validate at source)
+                if not email_id:
+                    print(f"⚠️  Warning: Email missing 'id' field, generating UUID")
+                    email_id = str(uuid.uuid4())
+                    email['id'] = email_id  # Set it back in the email dict for consistency
                 digest_manager.store_email_data(user_id, email_id, email)
         timing_breakdown['store_data'] = time.time() - store_start
         
@@ -1652,32 +1805,6 @@ def send_all_digests():
             'message': 'Bulk send failed'
         }), 500
 
-@app.route('/create_test_user')
-@login_required
-def create_test_user():
-    """
-    Create a test user for development/testing
-    """
-    try:
-        test_user_id = 'test_user'
-        test_email = 'jesusegunadewunmi@gmail.com'  # Updated to your real email
-        
-        # Check if user already exists
-        existing_user = user_manager.get_user(test_user_id)
-        if existing_user:
-            return render_template('action_success.html',
-                                 message=f"Test user already exists: {test_email}")
-        
-        # Create test user
-        user_manager.create_user(test_user_id, test_email)
-        
-        return render_template('action_success.html',
-                             message=f"Test user created successfully: {test_email}")
-    
-    except Exception as e:
-        return render_template('action_error.html',
-                             error=str(e),
-                             action='create test user')
 
 @app.route('/create_user', methods=['GET', 'POST'])
 @login_required
@@ -1775,22 +1902,11 @@ if __name__ == '__main__':
     print("🚀 Starting VoxMail Web Application...")
     print("=" * 60)
     
-    # Create a test user if none exist
-    if not user_manager.users:
-        print("👤 Creating test user...")
-        user_manager.create_user(
-            'test_user', 
-            'jesusegunadewunmi@gmail.com',
-            digest_time=8,
-            timezone='UTC'
-        )
-        print("✅ Test user created: test_user")
-    
     print(f"\n🌐 Web interface: {BASE_URL}")
     
     # Run Flask app
     port = int(os.environ.get('PORT', 5000))
-    debug = False if os.environ.get('PORT') else True
+    debug = os.environ.get('FLASK_DEBUG', 'false').lower() == 'true'
 
     # Optional: warm up AI models at startup to avoid first-request latency
     try:

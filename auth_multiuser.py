@@ -240,16 +240,6 @@ def generate_state_token() -> str:
 
 
 # =============================================================================
-# TESTING
+# MODULE END
 # =============================================================================
-if __name__ == '__main__':
-    print("=" * 60)
-    print("🧪 MULTI-USER OAUTH MODULE TEST")
-    print("=" * 60)
-    print("\nThis module provides web-based OAuth for multi-user systems.")
-    print("\nKey functions:")
-    print("  1. get_oauth_authorization_url() - Start OAuth flow")
-    print("  2. handle_oauth_callback() - Complete OAuth flow")
-    print("  3. authenticate_gmail_multiuser() - Use existing token")
-    print("\n" + "=" * 60)
 

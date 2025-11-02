@@ -408,55 +408,5 @@ class ReplyLearningTracker:
 
 
 # =============================================================================
-# TESTING FUNCTION
+# MODULE END
 # =============================================================================
-
-def test_learning_tracker():
-    """Test the learning tracker"""
-    
-    print("\n" + "=" * 80)
-    print("TESTING REPLY LEARNING TRACKER (PHASE 3)")
-    print("=" * 80)
-    
-    tracker = ReplyLearningTracker()
-    
-    # Simulate some edits
-    test_cases = [
-        {
-            'email': {'subject': 'Meeting Request', 'sender_name': 'Sarah'},
-            'original': "Hi Sarah,\n\nThanks for your email about the meeting. I'll check my schedule and get back to you.\n\nBest",
-            'edited': "Hi Sarah,\n\nThanks for reaching out about the meeting! I'll check my calendar and send you some times that work.\n\nBest regards",
-            'metadata': {'generation_method': 'ai_enhanced', 'confidence_score': 0.85, 'tone': 'business', 'email_category': 'meeting_request'}
-        },
-        {
-            'email': {'subject': 'Quick Question', 'sender_name': 'Mike'},
-            'original': "Hi Mike,\n\nThanks for your question. I'll look into this and get back to you.\n\nBest",
-            'edited': "Hey Mike,\n\nGreat question! Let me dig into this and I'll get back to you soon.\n\nThanks!",
-            'metadata': {'generation_method': 'ai_enhanced', 'confidence_score': 0.75, 'tone': 'business', 'email_category': 'question'}
-        }
-    ]
-    
-    for i, case in enumerate(test_cases, 1):
-        print(f"\n[TEST {i}] Tracking edit...")
-        edit = tracker.track_reply_edit(
-            case['email'],
-            case['original'],
-            case['edited'],
-            case['metadata']
-        )
-        print(f"  Edit Type: {edit.edit_type}")
-        print(f"  Similarity: {edit.edit_similarity:.2f}")
-        print(f"  Length Change: {edit.changes_detected['length_change']} chars")
-    
-    # Get insights
-    print("\n" + "=" * 80)
-    print("LEARNING INSIGHTS")
-    print("=" * 80)
-    insights = tracker.get_learning_insights()
-    print(json.dumps(insights, indent=2))
-    
-    print("\n[OK] Learning tracker test complete!")
-
-
-if __name__ == "__main__":
-    test_learning_tracker()

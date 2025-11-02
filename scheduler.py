@@ -23,6 +23,7 @@ import sys
 import json
 import time
 import base64
+import shutil
 import schedule
 import traceback
 from datetime import datetime, timedelta
@@ -30,6 +31,19 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from typing import Dict, List, Any, Optional, Tuple
 import pytz
+
+# Cross-platform file locking
+try:
+    import fcntl  # Unix/Linux
+    _has_fcntl = True
+except ImportError:
+    _has_fcntl = False
+
+try:
+    import msvcrt  # Windows
+    _has_msvcrt = True
+except ImportError:
+    _has_msvcrt = False
 
 # Import lightweight components only (no AI models)
 try:
@@ -170,30 +184,84 @@ class SimplifiedDigestManager:
     """
     Simplified digest data manager for scheduler
     This mirrors the DigestDataManager from web_app.py
+    
+    FIXES:
+    - Uses file locking to prevent race conditions with web_app.py
+    - Uses atomic writes to prevent data corruption
     """
     
     def __init__(self):
         self.data_file = DIGEST_DATA_FILE
         self.digest_data = self._load_data()
     
+    def _acquire_lock(self, file_handle):
+        """Acquire file lock (cross-platform)"""
+        if _has_msvcrt:
+            # Windows
+            msvcrt.locking(file_handle.fileno(), msvcrt.LK_LOCK, 1)
+        elif _has_fcntl:
+            # Unix/Linux
+            try:
+                fcntl.flock(file_handle.fileno(), fcntl.LOCK_EX)
+            except (IOError, OSError):
+                pass  # Lock not supported on this system
+    
+    def _release_lock(self, file_handle):
+        """Release file lock (cross-platform)"""
+        if _has_msvcrt:
+            # Windows
+            try:
+                msvcrt.locking(file_handle.fileno(), msvcrt.LK_UNLCK, 1)
+            except:
+                pass
+        elif _has_fcntl:
+            # Unix/Linux
+            try:
+                fcntl.flock(file_handle.fileno(), fcntl.LOCK_UN)
+            except (IOError, OSError):
+                pass
+    
     def _load_data(self) -> Dict[str, Any]:
-        """Load digest data from file"""
+        """Load digest data from file with locking"""
         try:
             if os.path.exists(self.data_file):
                 with open(self.data_file, 'r') as f:
-                    return json.load(f)
+                    self._acquire_lock(f)
+                    try:
+                        data = json.load(f)
+                    finally:
+                        self._release_lock(f)
+                    return data
             return {}
         except Exception as e:
             log_message(f"Error loading digest data: {e}", "ERROR")
             return {}
     
     def _save_data(self):
-        """Save digest data to file"""
+        """Save digest data to file with atomic write and locking (prevents race conditions)"""
         try:
-            with open(self.data_file, 'w') as f:
-                json.dump(self.digest_data, f, indent=2, default=str)
+            # Write to temporary file first (atomic write)
+            temp_file = f"{self.data_file}.tmp"
+            with open(temp_file, 'w') as f:
+                self._acquire_lock(f)
+                try:
+                    json.dump(self.digest_data, f, indent=2, default=str)
+                    f.flush()
+                    os.fsync(f.fileno())  # Ensure data is written to disk
+                finally:
+                    self._release_lock(f)
+            
+            # Atomically replace the original file
+            shutil.move(temp_file, self.data_file)
+            
         except Exception as e:
             log_message(f"Error saving digest data: {e}", "ERROR")
+            # Clean up temp file if it exists
+            try:
+                if os.path.exists(temp_file):
+                    os.remove(temp_file)
+            except:
+                pass
     
     def store_email_data(self, user_id: str, email_id: str, email_data: Dict[str, Any]):
         """Store processed email data for button actions - PRESERVES existing data"""
@@ -215,6 +283,9 @@ class SimplifiedDigestManager:
     
     def record_digest_sent(self, user_id: str, email_count: int, success: bool = True):
         """Record when a digest is sent"""
+        # FIX: Reload data before writing to ensure we have latest data
+        self.digest_data = self._load_data()
+        
         if user_id not in self.digest_data:
             self.digest_data[user_id] = {}
         
