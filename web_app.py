@@ -1021,9 +1021,9 @@ def send_reply(user_id: str, email_id: str):
                     fetcher = EmailFetcher(gmail_service)
                     email_details = fetcher.get_email_details(email_id)
                     if email_details:
-                        from ai_processor import EmailProcessor
-                        processor = EmailProcessor()
-                        email_data = processor.process_email(email_details)
+                        # Use AdvancedEmailProcessor to generate advanced_reply with primary_reply
+                        processor = get_advanced_processor()
+                        email_data = processor.advanced_process_email(email_details)
                         digest_manager.store_email_data(user_id, email_id, email_data)
                     else:
                         abort(404, "Email data not found and could not be fetched from Gmail")
@@ -1037,7 +1037,7 @@ def send_reply(user_id: str, email_id: str):
         
         # Get the AI-generated reply from your advanced system
         advanced_reply = email_data.get('advanced_reply', {})
-        reply_text = advanced_reply.get('primary_reply', '')
+        reply_text = advanced_reply.get('primary_reply', '') if advanced_reply else ''
         
         if not reply_text:
             abort(400, "No reply available for this email")
@@ -1103,9 +1103,9 @@ def email_details(user_id: str, email_id: str):
                     fetcher = EmailFetcher(gmail_service)
                     email_details = fetcher.get_email_details(email_id)
                     if email_details:
-                        from ai_processor import EmailProcessor
-                        processor = EmailProcessor()
-                        email_data = processor.process_email(email_details)
+                        # Use AdvancedEmailProcessor to generate advanced_reply with primary_reply
+                        processor = get_advanced_processor()
+                        email_data = processor.advanced_process_email(email_details)
                         digest_manager.store_email_data(user_id, email_id, email_data)
                     else:
                         abort(404, "Email data not found and could not be fetched from Gmail")
@@ -1180,9 +1180,9 @@ def edit_reply(user_id: str, email_id: str):
                     email_details = fetcher.get_email_details(email_id)
                     if email_details:
                         print(f"✅ Email fetched from Gmail, processing with AI...")
-                        from ai_processor import EmailProcessor
-                        processor = EmailProcessor()
-                        email_data = processor.process_email(email_details)
+                        # Use AdvancedEmailProcessor to generate advanced_reply with primary_reply
+                        processor = get_advanced_processor()
+                        email_data = processor.advanced_process_email(email_details)
                         digest_manager.store_email_data(user_id, email_id, email_data)
                         print(f"✅ Email {email_id} processed and stored successfully")
                     else:
@@ -1211,9 +1211,9 @@ def edit_reply(user_id: str, email_id: str):
                         email_details = fetcher.get_email_details(email_id)
                         if email_details:
                             print(f"✅ Email fetched from Gmail, processing with AI...")
-                            from ai_processor import EmailProcessor
-                            processor = EmailProcessor()
-                            email_data = processor.process_email(email_details)
+                            # Use AdvancedEmailProcessor to generate advanced_reply with primary_reply
+                            processor = get_advanced_processor()
+                            email_data = processor.advanced_process_email(email_details)
                             digest_manager.store_email_data(user_id, email_id, email_data)
                             print(f"✅ Email {email_id} processed and stored successfully")
                         else:
