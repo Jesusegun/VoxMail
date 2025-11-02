@@ -176,7 +176,7 @@
                 {% if original_email.body %}
                 <details style="margin-top: 12px;">
                     <summary style="cursor: pointer; font-weight: 600;">View Full Email</summary>
-                    <div style="margin-top: 8px; padding: 8px; background: rgba(255,255,255,0.5); border-radius: 4px; white-space: pre-wrap;">{{ original_email.body[:500] }}{% if original_email.body|length > 500 %}...{% endif %}</div>
+                    <div style="margin-top: 8px; padding: 8px; background: rgba(255,255,255,0.5); border-radius: 4px; white-space: pre-wrap; max-height: 400px; overflow-y: auto;">{{ original_email.body }}</div>
                 </details>
                 {% endif %}
             </div>

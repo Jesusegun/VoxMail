@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Loading Email - AI Email Digest</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            margin: 0;
+            padding: 50px 20px;
+            background-color: #f8fafc;
+            color: #1f2937;
+            text-align: center;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            padding: 40px;
+        }
+        .loading-spinner {
+            width: 48px;
+            height: 48px;
+            border: 4px solid #e5e7eb;
+            border-top-color: #2563eb;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 24px;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #1f2937;
+            margin-bottom: 12px;
+        }
+        .message {
+            color: #6b7280;
+            margin-bottom: 8px;
+            line-height: 1.5;
+        }
+        .submessage {
+            color: #9ca3af;
+            font-size: 14px;
+            margin-top: 16px;
+        }
+        .progress-dots {
+            display: inline-flex;
+            gap: 4px;
+            margin-top: 16px;
+        }
+        .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: #2563eb;
+            animation: pulse 1.4s ease-in-out infinite;
+        }
+        .dot:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+        .dot:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 0.3; }
+            50% { opacity: 1; }
+        }
+    </style>
+    <script>
+        // Auto-refresh every 3 seconds to check if processing is complete
+        let attempts = 0;
+        const maxAttempts = 50; // ~2.5 minutes max wait time (50 * 3s)
+        
+        function checkStatus() {
+            attempts++;
+            
+            if (attempts >= maxAttempts) {
+                document.querySelector('.message').textContent = 'Taking longer than expected. Please refresh the page or try again.';
+                document.querySelector('.submessage').style.display = 'none';
+                return;
+            }
+            
+            // Try to fetch the same page - if it returns 200, email is ready
+            fetch('{{ redirect_url }}', { 
+                method: 'GET',
+                credentials: 'same-origin',
+                headers: {
+                    'Accept': 'text/html'
+                }
+            })
+                .then(response => {
+                    if (response.ok || response.status === 200) {
+                        // Email is ready, redirect immediately
+                        window.location.href = '{{ redirect_url }}';
+                    } else if (response.status === 404 || response.status === 500) {
+                        // Still processing or error, wait and retry
+                        setTimeout(checkStatus, 3000);
+                    } else {
+                        // Other status, retry
+                        setTimeout(checkStatus, 3000);
+                    }
+                })
+                .catch(error => {
+                    // Network error, retry
+                    console.log('Retrying...', error);
+                    setTimeout(checkStatus, 3000);
+                });
+        }
+        
+        // Start checking after initial 2 second delay (give server time to start processing)
+        setTimeout(checkStatus, 2000);
+    </script>
+</head>
+<body>
+    <div class="container">
+        <div class="loading-spinner"></div>
+        <div class="title">Loading Email Data</div>
+        <div class="message">
+            Fetching email from Gmail and processing with AI...
+        </div>
+        <div class="submessage">
+            This may take 10-15 seconds
+        </div>
+        <div class="progress-dots">
+            <div class="dot"></div>
+            <div class="dot"></div>
+            <div class="dot"></div>
+        </div>
+    </div>
+</body>
+</html>

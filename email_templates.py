@@ -578,9 +578,10 @@ def generate_email_card_html(email: Dict[str, Any], user_id: str, base_url: str,
             send_url = f"{base_url}/send/{user_id}/{email_id}"
             card_html += f'                            <a href="{send_url}" class="btn btn-send">✓ Send</a>\n'
         
-        # Edit reply button
-        edit_url = f"{base_url}/edit/{user_id}/{email_id}"
-        card_html += f'                            <a href="{edit_url}" class="btn btn-edit">✏️ Edit</a>\n'
+        # Edit reply button (only show if draft reply exists)
+        if primary_reply:
+            edit_url = f"{base_url}/edit/{user_id}/{email_id}"
+            card_html += f'                            <a href="{edit_url}" class="btn btn-edit">✏️ Edit</a>\n'
         
         # More details button (for collapsed cards)
         if not expanded:
