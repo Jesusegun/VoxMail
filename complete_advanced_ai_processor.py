@@ -1268,23 +1268,26 @@ class CompleteEmailAgent:
         
         # Initialize email fetching system
         if use_gmail_api:
+            # Use multi-user auth (auth_test.py is deprecated)
             try:
-                # Use multi-user auth (auth_test.py is deprecated)
-                try:
-                    import auth_multiuser
-                    from email_fetcher import EmailFetcher
-                    # Note: Multi-user auth requires user-specific token paths
-                    # For CompleteEmailAgent, use mock mode unless user provides token
-                    print("[EMAIL] Gmail API requires user-specific authentication")
-                    print("[EMAIL] Switching to mock mode (use UserManager for real Gmail access)")
-                    raise ImportError("Use UserManager.get_user_gmail_service() for Gmail access")
-                except ImportError:
-                    pass
-                
+                import auth_multiuser
+                from email_fetcher import EmailFetcher
+                # Note: Multi-user auth requires user-specific token paths
+                # For CompleteEmailAgent, use mock mode unless user provides token
+                print("[EMAIL] Gmail API requires user-specific authentication")
+                print("[EMAIL] Switching to mock mode (use UserManager for real Gmail access)")
+                raise ImportError("Use UserManager.get_user_gmail_service() for Gmail access")
+            except ImportError:
+                pass
+            
+            try:
                 from mock_email_fetcher import MockEmailFetcher
                 self.email_fetcher = MockEmailFetcher()
                 self.use_gmail_api = False
                 print("[OK] Mock email fetcher ready")
+            except ImportError:
+                print("[ERROR] Mock email fetcher not available")
+                raise
         else:
             try:
                 from mock_email_fetcher import MockEmailFetcher
