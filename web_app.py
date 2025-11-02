@@ -621,10 +621,59 @@ class DigestDataManager:
                         if user_id in fresh_data:
                             available_emails = [k for k in fresh_data[user_id].keys() if k != 'digest_history'][:5]
                             print(f"   Sample email_ids for {user_id}: {available_emails}")
-                        return None
+                        # FIX #5: Try finding email_id across ALL users (handles user_id mismatch)
+                        print(f"🔍 Searching for email {email_id} across all users...")
+                        found_in_alt_user = False
+                        for alt_user_id, alt_user_data in fresh_data.items():
+                            if isinstance(alt_user_data, dict) and email_id in alt_user_data:
+                                print(f"✅ Found email {email_id} under different user_id: {alt_user_id}")
+                                print(f"   Original user_id in URL: {user_id}")
+                                print(f"   Actual user_id in file: {alt_user_id}")
+                                email_entry = alt_user_data[email_id]
+                                # Load into memory with correct user_id
+                                if alt_user_id not in self.digest_data:
+                                    self.digest_data[alt_user_id] = {}
+                                self.digest_data[alt_user_id][email_id] = email_entry
+                                self._file_mtime = current_mtime
+                                print(f"✅ Loaded email with correct user_id: {alt_user_id}")
+                                found_in_alt_user = True
+                                break
+                        if not found_in_alt_user:
+                            # Email not found in any user - show debug info
+                            print(f"⚠️  Email {email_id} not found in any user in file")
+                            for uid, udata in list(fresh_data.items())[:3]:
+                                if isinstance(udata, dict):
+                                    sample_ids = [k for k in udata.keys() if k != 'digest_history'][:3]
+                                    print(f"   Sample email_ids for {uid}: {sample_ids}")
+                            return None
                 else:
                     print(f"⚠️  User {user_id} not found in file")
-                    return None
+                    # FIX #5: Try finding email_id across ALL users (handles user_id mismatch)
+                    print(f"🔍 Searching for email {email_id} across all users in file...")
+                    for alt_user_id, alt_user_data in fresh_data.items():
+                        if isinstance(alt_user_data, dict) and email_id in alt_user_data:
+                            print(f"✅ Found email {email_id} under different user_id: {alt_user_id}")
+                            print(f"   Original user_id in URL: {user_id}")
+                            print(f"   Actual user_id in file: {alt_user_id}")
+                            email_entry = alt_user_data[email_id]
+                            # Load into memory with correct user_id
+                            if alt_user_id not in self.digest_data:
+                                self.digest_data[alt_user_id] = {}
+                            self.digest_data[alt_user_id][email_id] = email_entry
+                            self._file_mtime = current_mtime
+                            print(f"✅ Loaded email with correct user_id: {alt_user_id}")
+                            # Continue processing with the email_entry we found
+                            break
+                    else:
+                        # Email not found in any user - show debug info
+                        print(f"⚠️  Email {email_id} not found in any user in file")
+                        print(f"   Available user_ids: {list(fresh_data.keys())}")
+                        # Show sample email_ids from all users
+                        for uid, udata in list(fresh_data.items())[:3]:
+                            if isinstance(udata, dict):
+                                sample_ids = [k for k in udata.keys() if k != 'digest_history'][:3]
+                                print(f"   Sample email_ids for {uid}: {sample_ids}")
+                        return None
             except Exception as e:
                 print(f"⚠️  Error loading data from disk: {e}")
                 return None
