@@ -52,10 +52,11 @@ def _lazy_load_ai_components():
     if authenticate_gmail is None:
         print("📦 Loading AI components...")
         try:
-            from auth_test import authenticate_gmail as _auth
             from email_fetcher import EmailFetcher as _Fetcher
             import auth_multiuser as _auth_multi
-            authenticate_gmail = _auth
+            # Note: authenticate_gmail from auth_test.py is deprecated
+            # All code now uses auth_multiuser.authenticate_gmail_multiuser()
+            authenticate_gmail = None  # Not used - kept for backward compatibility
             EmailFetcher = _Fetcher
             auth_multiuser = _auth_multi
             print("✅ AI components loaded successfully")
@@ -370,10 +371,7 @@ def migrate_existing_user_token():
     
     # Check if old token exists
     if not os.path.exists(old_token_path):
-        print("📂 No old token to migrate")
-        return
-    
-    print("🔄 Migrating existing OAuth token to multi-user system...")
+        return  # Silently skip if no old token
     
     try:
         # Load old token to get email address
@@ -385,16 +383,19 @@ def migrate_existing_user_token():
         with open(old_token_path, 'rb') as f:
             creds = pickle.load(f)
         
+        # Validate token is not expired
+        if creds.expired and not creds.refresh_token:
+            # Token is expired and can't be refreshed - skip migration
+            print(f"ℹ️  Old token is expired, skipping migration (users can re-authenticate via /oauth_login)")
+            return
+        
         # Build Gmail service to get user email
         service = build('gmail', 'v1', credentials=creds)
         profile = service.users().getProfile(userId='me').execute()
         email_address = profile.get('emailAddress')
         
         if not email_address:
-            print("❌ Could not extract email from old token")
-            return
-        
-        print(f"📧 Old token belongs to: {email_address}")
+            return  # Silently skip if can't extract email
         
         # Create user ID
         user_id = email_address.replace('@', '_at_').replace('.', '_dot_')
@@ -402,29 +403,23 @@ def migrate_existing_user_token():
         
         # Check if new token already exists
         if os.path.exists(new_token_path):
-            print(f"✅ Token already migrated to: {new_token_path}")
-            return
+            return  # Already migrated, silently skip
         
         # Copy old token to new location
         import shutil
         shutil.copy2(old_token_path, new_token_path)
-        print(f"✅ Token migrated to: {new_token_path}")
+        print(f"✅ Migrated token for {email_address}")
         
         # Update user record if exists
         user = user_manager.get_user(user_id)
         if user:
             user['token_path'] = new_token_path
             user_manager._save_users()
-            print(f"✅ Updated user record for {user_id}")
-        else:
-            print(f"⚠️  User {user_id} not found in users.json - they'll need to re-authenticate")
-        
-        print("✅ Token migration complete!")
-        print(f"💡 You can now delete the old token: {old_token_path}")
         
     except Exception as e:
-        print(f"❌ Token migration failed: {e}")
-        print("💡 Users may need to re-authenticate via /oauth_login")
+        # Silently handle migration failures - they're not critical
+        # Common causes: expired token, invalid token, network issues
+        pass
 
 # Run migration on startup
 migrate_existing_user_token()
@@ -595,19 +590,55 @@ class DigestDataManager:
         self._save_data()
     
     def get_email_data(self, user_id: str, email_id: str) -> Optional[Dict[str, Any]]:
-        """Get stored email data - reloads from disk if file was modified"""
-        # FIX: Reload data if file has been modified (fixes stale data issue)
-        self._reload_if_needed()
+        """Get stored email data - reloads from disk if file was modified or email not found"""
         
-        # FIX #4: Add defensive checks for old data structures (backward compatibility)
+        # First, check in-memory data
         user_data = self.digest_data.get(user_id, {})
-        if not user_data:
-            return None
+        email_entry = user_data.get(email_id) if user_data else None
         
-        email_entry = user_data.get(email_id)
+        # If email not found in memory, force reload from disk (fixes old email issue)
+        if not email_entry:
+            print(f"🔍 Email {email_id} not in memory, forcing reload from disk...")
+            try:
+                current_mtime = self._get_file_mtime()
+                fresh_data = self._load_data()
+                
+                # Replace in-memory data with fresh data from disk
+                # This ensures we have the latest data for the lookup
+                if user_id in fresh_data:
+                    if email_id in fresh_data[user_id]:
+                        email_entry = fresh_data[user_id][email_id]
+                        # Update in-memory cache
+                        if user_id not in self.digest_data:
+                            self.digest_data[user_id] = {}
+                        self.digest_data[user_id][email_id] = email_entry
+                        self._file_mtime = current_mtime
+                        print(f"✅ Found email {email_id} in file, loaded into memory")
+                    else:
+                        print(f"⚠️  Email {email_id} not found in file for user {user_id}")
+                        # Check what user_ids and email_ids are in the file for debugging
+                        print(f"   Available user_ids in file: {list(fresh_data.keys())}")
+                        if user_id in fresh_data:
+                            available_emails = [k for k in fresh_data[user_id].keys() if k != 'digest_history'][:5]
+                            print(f"   Sample email_ids for {user_id}: {available_emails}")
+                        return None
+                else:
+                    print(f"⚠️  User {user_id} not found in file")
+                    return None
+            except Exception as e:
+                print(f"⚠️  Error loading data from disk: {e}")
+                return None
+        else:
+            # Email found in memory, but still check if file was updated
+            self._reload_if_needed()
+            # Re-fetch after reload in case it was updated
+            user_data = self.digest_data.get(user_id, {})
+            email_entry = user_data.get(email_id) if user_data else None
+        
         if not email_entry:
             return None
         
+        # FIX #4: Add defensive checks for old data structures (backward compatibility)
         # Handle both old and new data structures
         # New structure: {'email_data': {...}, 'stored_at': ..., 'actions_taken': [...]}
         # Old structure: email_entry IS the email_data directly

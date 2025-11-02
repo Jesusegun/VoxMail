@@ -430,36 +430,13 @@ class DigestScheduler:
             error_message: Error details
         """
         try:
-            # Lazy import only when needed (errors are rare)
-            try:
-                from auth_test import authenticate_gmail
-            except ImportError:
-                log_message("Could not import authenticate_gmail for error notification", "WARNING")
-                return
+            # Note: Error notifications would require admin authentication
+            # Errors are logged to file, so we skip email notifications
+            log_message("Error notification email skipped (errors logged to file)", "INFO")
+            return
             
-            gmail_service = authenticate_gmail()
-            if not gmail_service:
-                return
-            
-            # Get admin email from environment or use default
-            admin_email = os.environ.get('ADMIN_EMAIL', 'jesusegunadewunmi@gmail.com')
-            
-            message = MIMEText(
-                f"Failed to send digest to {user_email}\n\n"
-                f"Error: {error_message}\n\n"
-                f"Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
-                f"Please check the scheduler logs for more details."
-            )
-            message['to'] = admin_email
-            message['subject'] = f"🚨 VoxMail Error - {user_email}"
-            
-            raw_message = base64.urlsafe_b64encode(message.as_bytes()).decode('utf-8')
-            gmail_service.users().messages().send(
-                userId='me',
-                body={'raw': raw_message}
-            ).execute()
-            
-            log_message("📧 Error notification sent to admin", "INFO")
+            # Unreachable - kept for reference if email notifications needed in future
+            # Would require: admin_email setup and auth_multiuser with admin token
             
         except Exception as e:
             log_message(f"Could not send error notification: {e}", "WARNING")
