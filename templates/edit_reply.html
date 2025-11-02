@@ -216,7 +216,6 @@
                 replyOptions = JSON.parse(dataElement.getAttribute('data-replies'));
             }
         } catch (e) {
-            console.warn('Could not parse reply options:', e);
             replyOptions = {
                 'primary': document.querySelector('textarea[name="reply_content"]')?.value || ''
             };

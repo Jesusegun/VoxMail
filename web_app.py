@@ -1159,8 +1159,6 @@ def edit_reply(user_id: str, email_id: str):
     Shows edit interface with AI-generated reply and alternatives
     """
     
-    print(f"✏️ Edit reply request: User {user_id}, Email {email_id}, Processing param: {request.args.get('processing')}")
-    
     try:
         # Get the stored email data
         email_data = digest_manager.get_email_data(user_id, email_id)
@@ -1170,58 +1168,42 @@ def edit_reply(user_id: str, email_id: str):
             # Check if this is a retry (has ?processing=true parameter)
             if request.args.get('processing') == 'true':
                 # This is a retry after showing loading page - attempt to fetch
-                print(f"🔄 Processing mode: Fetching email {email_id} from Gmail for user {user_id}")
                 try:
                     _lazy_load_ai_components()
                     gmail_service = user_manager.get_user_gmail_service(user_id)
                     from email_fetcher import EmailFetcher
                     fetcher = EmailFetcher(gmail_service)
-                    print(f"📧 Fetching email details from Gmail API...")
                     email_details = fetcher.get_email_details(email_id)
                     if email_details:
-                        print(f"✅ Email fetched from Gmail, processing with AI...")
                         # Use AdvancedEmailProcessor to generate advanced_reply with primary_reply
                         processor = get_advanced_processor()
                         email_data = processor.advanced_process_email(email_details)
                         digest_manager.store_email_data(user_id, email_id, email_data)
-                        print(f"✅ Email {email_id} processed and stored successfully")
                     else:
-                        print(f"❌ Email {email_id} not found in Gmail")
                         abort(404, "Email data not found and could not be fetched from Gmail")
                 except Exception as e:
-                    import traceback
-                    print(f"❌ Error fetching email from Gmail: {e}")
-                    print(f"❌ Traceback: {traceback.format_exc()}")
+                    print(f"Error fetching email from Gmail: {e}")
                     abort(404, f"Email data not found and Gmail fetch failed: {str(e)}")
             else:
                 # First attempt - show loading page and start background fetch
-                print(f"⏳ Email {email_id} not in storage, showing loading page and starting background fetch...")
                 redirect_url = request.url + ('&' if '?' in request.url else '?') + 'processing=true'
                 
                 # Start background fetch thread so email is ready when JavaScript polls
                 import threading
                 def fetch_email_in_background():
                     try:
-                        print(f"🔄 Background fetch started: Fetching email {email_id} from Gmail for user {user_id}")
                         _lazy_load_ai_components()
                         gmail_service = user_manager.get_user_gmail_service(user_id)
                         from email_fetcher import EmailFetcher
                         fetcher = EmailFetcher(gmail_service)
-                        print(f"📧 Fetching email details from Gmail API...")
                         email_details = fetcher.get_email_details(email_id)
                         if email_details:
-                            print(f"✅ Email fetched from Gmail, processing with AI...")
                             # Use AdvancedEmailProcessor to generate advanced_reply with primary_reply
                             processor = get_advanced_processor()
                             email_data = processor.advanced_process_email(email_details)
                             digest_manager.store_email_data(user_id, email_id, email_data)
-                            print(f"✅ Email {email_id} processed and stored successfully")
-                        else:
-                            print(f"❌ Email {email_id} not found in Gmail")
                     except Exception as e:
-                        import traceback
-                        print(f"❌ Error in background fetch: {e}")
-                        print(f"❌ Traceback: {traceback.format_exc()}")
+                        print(f"Error in background fetch: {e}")
                 
                 # Start background thread
                 fetch_thread = threading.Thread(target=fetch_email_in_background, daemon=True)
@@ -1322,7 +1304,6 @@ def send_edited_reply(user_id: str, email_id: str):
         # Record the action
         digest_manager.record_action(user_id, email_id, 'edited_reply_sent')
         
-        print(f"✅ Edited reply sent successfully!")
         return render_template('action_success.html', 
                              action='Edited reply sent', 
                              email_subject=original_subject,
@@ -1420,7 +1401,6 @@ def track_reply_edit_internal(user_id: str, email_id: str, original_reply: str,
         reply_metadata = advanced_reply.get('reply_metadata', {})
         
         # Track the edit using Phase 3 learning tracker
-        print(f"📝 Tracking edit with smart reply generator...")
         edit_result = generator.track_reply_edit(
             email_data=email_data,
             original_reply=original_reply,

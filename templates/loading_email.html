@@ -100,23 +100,14 @@
         (function() {
             'use strict';
             
-            // Debug: Log that script is running
-            console.log('Loading email page script started');
-            
-            // Get redirect URL from template
             const redirectUrl = '{{ redirect_url }}';
-            console.log('Redirect URL:', redirectUrl);
-            
-            // Auto-refresh every 3 seconds to check if processing is complete
             let attempts = 0;
-            const maxAttempts = 50; // ~2.5 minutes max wait time (50 * 3s)
+            const maxAttempts = 50;
             
             function checkStatus() {
                 attempts++;
-                console.log('Polling attempt ' + attempts + ' of ' + maxAttempts);
                 
                 if (attempts >= maxAttempts) {
-                    console.log('Max attempts reached');
                     const messageEl = document.querySelector('.message');
                     const submessageEl = document.querySelector('.submessage');
                     if (messageEl) messageEl.textContent = 'Taking longer than expected. Please refresh the page or try again.';
@@ -124,11 +115,8 @@
                     return;
                 }
                 
-                // Try to fetch the same page - if it returns 200, email is ready
-                // Add cache-busting parameter to ensure fresh request
                 const separator = redirectUrl.includes('?') ? '&' : '?';
                 const url = redirectUrl + separator + '_t=' + Date.now();
-                console.log('Fetching URL:', url);
                 
                 fetch(url, { 
                     method: 'GET',
@@ -141,73 +129,46 @@
                     cache: 'no-store'
                 })
                     .then(response => {
-                        console.log('Poll attempt ' + attempts + ': Status ' + response.status + ', OK: ' + response.ok);
-                        // Check response status and content length to determine if it's the loading page or actual content
                         return response.clone().text().then(text => {
-                            console.log('Response text length:', text.length);
                             const isActualPage = text.length > 5000 || 
                                                    text.includes('edit_reply') || 
                                                    text.includes('Edit Reply') || 
                                                    text.includes('email_details') || 
                                                    text.includes('Email Details') ||
                                                    text.includes('Your Reply');
-                            console.log('Is actual page:', isActualPage);
                             
                             if (response.ok && isActualPage) {
-                                // Email is ready, redirect immediately
-                                console.log('Email ready, redirecting...');
-                                // Use replace to prevent back button issues
                                 window.location.replace(redirectUrl);
                             } else if (response.status === 404 || response.status === 500) {
-                                // Error occurred, wait and retry
-                                console.log('Error status, retrying in 3 seconds...');
                                 setTimeout(checkStatus, 3000);
                             } else {
-                                // Still processing (likely still showing loading page), wait and retry
-                                console.log('Still processing (got loading page), retrying in 3 seconds...');
                                 setTimeout(checkStatus, 3000);
                             }
-                        }).catch(textError => {
-                            console.error('Error reading response text:', textError);
-                            // Still retry on next interval
+                        }).catch(() => {
                             setTimeout(checkStatus, 3000);
                         });
                     })
-                    .catch(error => {
-                        // Network error, retry
-                        console.error('Network error, retrying in 3 seconds...', error);
+                    .catch(() => {
                         setTimeout(checkStatus, 3000);
                     });
             }
             
-            // Start checking - multiple ways to ensure it runs on mobile
-            // Method 1: DOMContentLoaded (preferred)
             if (document.readyState === 'loading') {
                 document.addEventListener('DOMContentLoaded', function() {
-                    console.log('DOMContentLoaded - Starting poll in 2 seconds...');
                     setTimeout(checkStatus, 2000);
                 });
             } else {
-                // DOM already loaded, start immediately
-                console.log('DOM already loaded - Starting poll in 2 seconds...');
                 setTimeout(checkStatus, 2000);
             }
             
-            // Method 2: Window load event (fallback)
             window.addEventListener('load', function() {
-                console.log('Window load event fired');
-                // This ensures polling starts even if DOMContentLoaded already fired
                 if (attempts === 0) {
-                    console.log('Starting poll from window.load in 2 seconds...');
                     setTimeout(checkStatus, 2000);
                 }
             });
             
-            // Method 3: Immediate execution (last resort)
-            // If both above fail, start after a short delay
             setTimeout(function() {
                 if (attempts === 0) {
-                    console.log('Fallback: Starting poll after 3 seconds...');
                     checkStatus();
                 }
             }, 3000);
