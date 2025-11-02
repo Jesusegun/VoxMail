@@ -146,10 +146,13 @@
 </head>
 <body>
     <!-- Hidden data element to store reply options for JavaScript -->
-    {% set reply_dict = {"primary": advanced_reply.primary_reply or ""} %}
-    {% if advanced_reply.alternative_replies %}
+    {% set primary_reply = (advanced_reply.primary_reply if advanced_reply and 'primary_reply' in advanced_reply else "") %}
+    {% set reply_dict = {"primary": primary_reply} %}
+    {% if advanced_reply and 'alternative_replies' in advanced_reply and advanced_reply.alternative_replies %}
         {% for alt in advanced_reply.alternative_replies %}
-            {% set _ = reply_dict.update({alt.tone: alt.reply or ""}) %}
+            {% set alt_reply = (alt.reply if alt and alt.reply else "") %}
+            {% set alt_tone = (alt.tone if alt and alt.tone else "default") %}
+            {% set _ = reply_dict.update({alt_tone: alt_reply}) %}
         {% endfor %}
     {% endif %}
     <div id="reply-data" 
@@ -193,7 +196,7 @@
                         class="form-textarea" 
                         placeholder="Edit your reply here..."
                         required
-                    >{{ advanced_reply.primary_reply or '' }}</textarea>
+                    >{{ (advanced_reply.primary_reply if advanced_reply and 'primary_reply' in advanced_reply else '') }}</textarea>
                 </div>
 
                 <div class="button-container">
