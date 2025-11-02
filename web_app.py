@@ -575,7 +575,8 @@ class DigestDataManager:
         if user_id not in self.digest_data:
             self.digest_data[user_id] = {}
         
-        # Only store if email doesn't already exist (preserve existing data)
+        # CRITICAL FIX: Always store, but preserve existing data structure if it exists
+        # This ensures emails from old digests are still accessible
         if email_id not in self.digest_data[user_id]:
             # Store the complete email data from your AI system
             self.digest_data[user_id][email_id] = {
@@ -583,9 +584,15 @@ class DigestDataManager:
                 'stored_at': datetime.now().isoformat(),
                 'actions_taken': []
             }
-            print(f"📧 Stored new email data: {email_id}")
+            print(f"📧 Stored new email data: user_id={user_id}, email_id={email_id}, subject={email_data.get('subject', 'No Subject')[:50]}")
         else:
-            print(f"📧 Email data already exists, preserving: {email_id}")
+            # Update email_data but preserve actions_taken and stored_at
+            existing_entry = self.digest_data[user_id][email_id]
+            existing_entry['email_data'] = email_data  # Update with latest data
+            # Keep original stored_at if it exists
+            if 'stored_at' not in existing_entry:
+                existing_entry['stored_at'] = datetime.now().isoformat()
+            print(f"📧 Updated existing email data: user_id={user_id}, email_id={email_id}, subject={email_data.get('subject', 'No Subject')[:50]}")
         
         self._save_data()
     
@@ -847,10 +854,21 @@ def generate_user_digest(user_id: str) -> Dict[str, Any]:
         finally:
             SEMAPHORE.release()
         
-        # Ensure all emails have IDs for tracking
-        for result in processed_emails:
-            if 'id' not in result:
-                result['id'] = str(uuid.uuid4())
+        # CRITICAL: Preserve original Gmail message IDs - never overwrite!
+        # Only generate UUID if ID is truly missing (shouldn't happen)
+        for i, result in enumerate(processed_emails):
+            original_id = result.get('id')
+            if not original_id:
+                # This should never happen - Gmail emails always have IDs
+                new_id = str(uuid.uuid4())
+                result['id'] = new_id
+                print(f"⚠️  WARNING: Email {i} lost its ID during processing! Generated new UUID: {new_id}")
+                print(f"   Subject: {result.get('subject', 'Unknown')[:50]}")
+            else:
+                # Verify ID is preserved - log if it looks wrong
+                if not isinstance(original_id, str) or len(original_id) < 10:
+                    print(f"⚠️  WARNING: Email {i} has suspicious ID format: {original_id}")
+                # ID is preserved correctly
         
         timing_breakdown['ai_processing'] = time.time() - ai_processing_start
         print(f"✅ Processed {len(processed_emails)} emails with BATCH AI optimization")
@@ -893,10 +911,25 @@ def generate_user_digest(user_id: str) -> Dict[str, Any]:
                 email_id = email.get('id')
                 # FIX #3: Ensure email_id is never None (validate at source)
                 if not email_id:
-                    print(f"⚠️  Warning: Email missing 'id' field, generating UUID")
+                    print(f"⚠️  CRITICAL: Email missing 'id' field - this should never happen!")
+                    print(f"   Subject: {email.get('subject', 'Unknown')[:50]}")
+                    print(f"   Sender: {email.get('sender_email', 'Unknown')}")
                     email_id = str(uuid.uuid4())
                     email['id'] = email_id  # Set it back in the email dict for consistency
+                    print(f"   Generated UUID fallback: {email_id}")
+                
+                # CRITICAL: Ensure ID in email dict matches what we're storing
+                # This catches cases where email dict was modified between extract and store
+                if email.get('id') != email_id:
+                    print(f"⚠️  WARNING: Email dict ID changed between extract and store!")
+                    print(f"   Original email_id: {email_id}")
+                    print(f"   Current email.get('id'): {email.get('id')}")
+                    # Use the one from email dict as source of truth
+                    email_id = email.get('id')
+                
+                print(f"📧 Storing email with ID: {email_id} (subject: {email.get('subject', 'No Subject')[:50]})")
                 digest_manager.store_email_data(user_id, email_id, email)
+                print(f"✅ Email {email_id} stored successfully")
         timing_breakdown['store_data'] = time.time() - store_start
         
         # Count Phase 1+2+3 features used
@@ -996,8 +1029,36 @@ def send_reply(user_id: str, email_id: str):
     try:
         # Get the stored email data with AI-generated reply
         email_data = digest_manager.get_email_data(user_id, email_id)
+        
+        # FALLBACK: If email not in storage, fetch from Gmail (for old digest emails)
         if not email_data:
-            abort(404, "Email data not found")
+            print(f"⚠️  Email {email_id} not found in storage, attempting to fetch from Gmail...")
+            try:
+                _lazy_load_ai_components()
+                # Get user's Gmail service
+                gmail_service = user_manager.get_user_gmail_service(user_id)
+                # Create EmailFetcher instance
+                from email_fetcher import EmailFetcher
+                fetcher = EmailFetcher(gmail_service)
+                # Fetch email details from Gmail
+                email_details = fetcher.get_email_details(email_id)
+                if email_details:
+                    print(f"✅ Fetched email {email_id} from Gmail, processing with AI...")
+                    # Process with AI to generate reply
+                    from ai_processor import EmailProcessor
+                    processor = EmailProcessor()
+                    email_data = processor.process_email(email_details)
+                    # Store for future use
+                    digest_manager.store_email_data(user_id, email_id, email_data)
+                    print(f"✅ Email {email_id} processed and stored successfully")
+                else:
+                    print(f"❌ Could not fetch email {email_id} from Gmail")
+                    abort(404, "Email data not found and could not be fetched from Gmail")
+            except Exception as e:
+                print(f"❌ Error fetching email from Gmail: {e}")
+                import traceback
+                print(f"   Traceback: {traceback.format_exc()}")
+                abort(404, f"Email data not found and Gmail fetch failed: {str(e)}")
         
         # Get the AI-generated reply from your advanced system
         advanced_reply = email_data.get('advanced_reply', {})
@@ -1055,8 +1116,36 @@ def email_details(user_id: str, email_id: str):
     try:
         # Get the stored email data
         email_data = digest_manager.get_email_data(user_id, email_id)
+        
+        # FALLBACK: If email not in storage, fetch from Gmail (for old digest emails)
         if not email_data:
-            abort(404, "Email data not found")
+            print(f"⚠️  Email {email_id} not found in storage, attempting to fetch from Gmail...")
+            try:
+                _lazy_load_ai_components()
+                # Get user's Gmail service
+                gmail_service = user_manager.get_user_gmail_service(user_id)
+                # Create EmailFetcher instance
+                from email_fetcher import EmailFetcher
+                fetcher = EmailFetcher(gmail_service)
+                # Fetch email details from Gmail
+                email_details = fetcher.get_email_details(email_id)
+                if email_details:
+                    print(f"✅ Fetched email {email_id} from Gmail, processing with AI...")
+                    # Process with AI to generate reply
+                    from ai_processor import EmailProcessor
+                    processor = EmailProcessor()
+                    email_data = processor.process_email(email_details)
+                    # Store for future use
+                    digest_manager.store_email_data(user_id, email_id, email_data)
+                    print(f"✅ Email {email_id} processed and stored successfully")
+                else:
+                    print(f"❌ Could not fetch email {email_id} from Gmail")
+                    abort(404, "Email data not found and could not be fetched from Gmail")
+            except Exception as e:
+                print(f"❌ Error fetching email from Gmail: {e}")
+                import traceback
+                print(f"   Traceback: {traceback.format_exc()}")
+                abort(404, f"Email data not found and Gmail fetch failed: {str(e)}")
         
         # Get user preferences
         user = user_manager.get_user(user_id)
@@ -1105,12 +1194,36 @@ def edit_reply(user_id: str, email_id: str):
     try:
         # Get the stored email data
         email_data = digest_manager.get_email_data(user_id, email_id)
+        
+        # FALLBACK: If email not in storage, fetch from Gmail (for old digest emails)
         if not email_data:
-            print(f"❌ Email data not found for user_id={user_id}, email_id={email_id}")
-            print(f"   Checking if digest_data has any users...")
-            print(f"   Total users in memory: {len(digest_manager.digest_data)}")
-            print(f"   Users in memory: {list(digest_manager.digest_data.keys())[:5]}")
-            abort(404, "Email data not found")
+            print(f"⚠️  Email {email_id} not found in storage, attempting to fetch from Gmail...")
+            try:
+                _lazy_load_ai_components()
+                # Get user's Gmail service
+                gmail_service = user_manager.get_user_gmail_service(user_id)
+                # Create EmailFetcher instance
+                from email_fetcher import EmailFetcher
+                fetcher = EmailFetcher(gmail_service)
+                # Fetch email details from Gmail
+                email_details = fetcher.get_email_details(email_id)
+                if email_details:
+                    print(f"✅ Fetched email {email_id} from Gmail, processing with AI...")
+                    # Process with AI to generate reply
+                    from ai_processor import EmailProcessor
+                    processor = EmailProcessor()
+                    email_data = processor.process_email(email_details)
+                    # Store for future use
+                    digest_manager.store_email_data(user_id, email_id, email_data)
+                    print(f"✅ Email {email_id} processed and stored successfully")
+                else:
+                    print(f"❌ Could not fetch email {email_id} from Gmail")
+                    abort(404, "Email data not found and could not be fetched from Gmail")
+            except Exception as e:
+                print(f"❌ Error fetching email from Gmail: {e}")
+                import traceback
+                print(f"   Traceback: {traceback.format_exc()}")
+                abort(404, f"Email data not found and Gmail fetch failed: {str(e)}")
         
         # Prepare data for edit template
         edit_data = {
