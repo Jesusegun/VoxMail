@@ -1289,61 +1289,1300 @@ class BARTAcknowledgmentGenerator:
 
 class ConfidenceScorer:
     """
-    Calculates confidence score for generated replies
+    Calculates confidence score for generated replies (ENHANCED - Priority 3)
+    
+    Now checks for quality indicators that correlate with actual acceptance:
+    - Absence of generic phrases users consistently remove
+    - Presence of specific commitments users consistently add
+    - Enthusiasm markers users prefer
+    - Actual addressing of questions/actions
     """
+    
+    def __init__(self, learning_stats: Optional[Dict] = None):
+        """
+        Initialize enhanced confidence scorer
+        
+        Args:
+            learning_stats: Optional learning stats to calibrate confidence
+        """
+        self.learning_stats = learning_stats
+        
+        # Generic phrases that users REMOVE (penalty indicators)
+        self.generic_penalty_phrases = [
+            "i'll get back to you",
+            "i'll look into this",
+            "thanks for your email about",
+            "i see your question",
+            "i'll check on this",
+            "let me get back to you",
+            "i'll follow up",
+            "i'll review this"
+        ]
+        
+        # Specific phrases that users ADD (quality indicators)
+        self.quality_indicators = [
+            "by eod",
+            "by end of day",
+            "by tomorrow",
+            "by [day] afternoon",
+            "by [day] morning",
+            "i'll send you",
+            "i'll share",
+            "great question",
+            "good question",
+            "thanks for reaching out",
+            "happy to help",
+            "!",  # Enthusiasm marker
+        ]
+        
+        # Vague timeline words (penalty)
+        self.vague_timelines = [
+            "soon",
+            "shortly",
+            "later",
+            "eventually",
+            "in the future"
+        ]
+        
+        # Specific timeline patterns (quality)
+        self.specific_timeline_patterns = [
+            r'by \w+day',  # by Monday, by Tuesday, by today, by tomorrow
+            r'by eod',
+            r'by \d+:\d+',  # by 3:00, by 14:30
+            r'within \d+ (hours?|days?)',  # within 2 hours, within 3 days
+            r'this (morning|afternoon|evening)',
+            r'tomorrow (morning|afternoon|evening)'
+        ]
     
     def calculate_confidence(self, context: Dict[str, Any], generated_reply: str) -> float:
         """
-        Calculate confidence score (0.0 to 1.0)
+        Calculate ENHANCED confidence score (0.0 to 1.0)
         
-        Higher confidence when:
-        - Clear topic extracted
-        - Specific entities found
-        - Reply references concrete details
-        - No sensitive keywords
-        
-        Lower confidence when:
-        - Vague topic
-        - Few entities
-        - Generic reply
-        - Complex/ambiguous email
+        Now considers:
+        - Generic phrase penalties (what users remove)
+        - Quality indicators (what users add)
+        - Specificity of commitments
+        - Question/action addressing
+        - Learning-based calibration
         """
         
-        score = 0.5  # Base score
+        score = 0.5  # Base score (neutral)
+        reply_lower = generated_reply.lower()
         
-        # Context extraction quality (+0.3 max)
-        if context.get('extracted_successfully'):
-            score += 0.1
-            
-            if context.get('main_topic') and len(context['main_topic']) > 15:
-                score += 0.1  # Good topic
-            
-            entity_count = sum(len(v) for v in context.get('entities', {}).values())
-            if entity_count > 0:
-                score += min(0.1, entity_count * 0.02)  # Entities found
+        # ========== PENALTY FACTORS (What makes replies BAD) ==========
         
-        # Reply quality (+0.2 max)
-        if generated_reply:
-            # Check if reply mentions specific details
-            if context.get('main_topic', '') in generated_reply:
-                score += 0.05
-            
-            # Check length (not too short or long)
-            word_count = len(generated_reply.split())
-            if 30 <= word_count <= 150:
-                score += 0.05
-            
-            # Check for specificity (mentions numbers, dates, proper nouns)
-            if re.search(r'\d+', generated_reply):
-                score += 0.05
-            
-            if any(entity in generated_reply for entities in context.get('entities', {}).values() for entity in entities):
-                score += 0.05
+        # PENALTY 1: Generic phrases users consistently remove (-0.15 max)
+        generic_count = sum(1 for phrase in self.generic_penalty_phrases if phrase in reply_lower)
+        if generic_count > 0:
+            penalty = min(0.15, generic_count * 0.05)
+            score -= penalty
+            # print(f"[CONFIDENCE] Generic phrase penalty: -{penalty:.2f} ({generic_count} phrases)")
         
-        # Ensure score is within bounds
+        # PENALTY 2: Vague timelines (-0.10)
+        has_vague_timeline = any(vague in reply_lower for vague in self.vague_timelines)
+        if has_vague_timeline:
+            score -= 0.10
+            # print(f"[CONFIDENCE] Vague timeline penalty: -0.10")
+        
+        # PENALTY 3: No specific commitment when action needed (-0.15)
+        if context.get('action_items') and len(context['action_items']) > 0:
+            # Action items present - should have specific commitment
+            has_specific_action = any(
+                word in reply_lower for word in ['send', 'share', 'provide', 'schedule', 'review', 'update']
+            )
+            if not has_specific_action:
+                score -= 0.15
+                # print(f"[CONFIDENCE] Missing specific action penalty: -0.15")
+        
+        # PENALTY 4: No enthusiasm when question asked (-0.05)
+        if context.get('questions') and len(context['questions']) > 0:
+            has_enthusiasm = ('!' in generated_reply or 
+                            'great question' in reply_lower or 
+                            'good question' in reply_lower)
+            if not has_enthusiasm:
+                score -= 0.05
+                # print(f"[CONFIDENCE] Missing enthusiasm penalty: -0.05")
+        
+        # ========== QUALITY FACTORS (What makes replies GOOD) ==========
+        
+        # QUALITY 1: Specific timeline present (+0.15)
+        has_specific_timeline = any(
+            re.search(pattern, reply_lower) for pattern in self.specific_timeline_patterns
+        )
+        if has_specific_timeline:
+            score += 0.15
+            # print(f"[CONFIDENCE] Specific timeline bonus: +0.15")
+        
+        # QUALITY 2: Quality phrases users add (+0.10 max)
+        quality_count = sum(1 for phrase in self.quality_indicators 
+                          if phrase in reply_lower or phrase in generated_reply)
+        if quality_count > 0:
+            bonus = min(0.10, quality_count * 0.03)
+            score += bonus
+            # print(f"[CONFIDENCE] Quality phrases bonus: +{bonus:.2f} ({quality_count} phrases)")
+        
+        # QUALITY 3: Specific topic/entity reference (+0.10)
+        topic_mentioned = False
+        if context.get('main_topic') and context['main_topic']:
+            # Check if main topic or variant is mentioned
+            topic_lower = context['main_topic'].lower()
+            if topic_lower in reply_lower and len(topic_lower) > 5:
+                topic_mentioned = True
+        
+        entities_mentioned = any(
+            entity.lower() in reply_lower 
+            for entities in context.get('entities', {}).values() 
+            for entity in entities
+        )
+        
+        if topic_mentioned or entities_mentioned:
+            score += 0.10
+            # print(f"[CONFIDENCE] Specific reference bonus: +0.10")
+        
+        # QUALITY 4: Question directly addressed (+0.10)
+        if context.get('questions') and len(context['questions']) > 0:
+            question = context['questions'][0].lower()
+            # Check if reply addresses question type
+            addresses_question = False
+            
+            if 'when' in question and has_specific_timeline:
+                addresses_question = True
+            elif 'available' in question and ('available' in reply_lower or 'schedule' in reply_lower):
+                addresses_question = True
+            elif 'status' in question and ('status' in reply_lower or 'update' in reply_lower):
+                addresses_question = True
+            
+            if addresses_question:
+                score += 0.10
+                # print(f"[CONFIDENCE] Question addressed bonus: +0.10")
+        
+        # QUALITY 5: Appropriate length (not too short/long) (+0.05)
+        word_count = len(generated_reply.split())
+        if 40 <= word_count <= 120:  # Based on learning: avg 116 words
+            score += 0.05
+            # print(f"[CONFIDENCE] Good length bonus: +0.05 ({word_count} words)")
+        
+        # ========== LEARNING-BASED CALIBRATION ==========
+        
+        # If we have learning stats showing low acceptance, reduce confidence
+        if self.learning_stats:
+            overall_acceptance = self.learning_stats.get('overall_acceptance_rate', '100%')
+            acceptance_rate = float(overall_acceptance.rstrip('%')) / 100.0
+            
+            # If acceptance rate is low, apply calibration penalty
+            if acceptance_rate < 0.5:  # Less than 50% acceptance
+                calibration = 1.0 - (0.5 - acceptance_rate)  # Max 0.5 reduction
+                score *= calibration
+                # print(f"[CONFIDENCE] Learning calibration: {calibration:.2f}x (acceptance: {overall_acceptance})")
+        
+        # ========== FINAL BOUNDS ==========
+        
         score = max(0.0, min(1.0, score))
         
         return round(score, 2)
+
+
+# =============================================================================
+# CONTENT-SPECIFIC REPLY BUILDER (Priority 1 Enhancement)
+# =============================================================================
+
+class QuestionAnalyzer:
+    """
+    Analyzes questions to extract what they're actually asking about
+    This enables specific responses instead of generic "I'll look into it"
+    """
+    
+    def __init__(self):
+        """Initialize question analyzer"""
+        self.question_topics = {
+            'timeline': ['when', 'deadline', 'due', 'timeline', 'schedule', 'date'],
+            'availability': ['available', 'free', 'meeting', 'call', 'time to'],
+            'status': ['status', 'progress', 'update', 'how is', 'where are we'],
+            'clarification': ['what do you mean', 'can you clarify', 'explain', 'wondering'],
+            'decision': ['should we', 'do you think', 'would you', 'opinion', 'thoughts'],
+            'approval': ['can i', 'may i', 'approve', 'permission', 'okay to'],
+            'information': ['what', 'which', 'how', 'where', 'who']
+        }
+    
+    def analyze_question(self, question: str) -> Dict[str, Any]:
+        """
+        Analyze question to determine what it's asking about
+        
+        Returns:
+            {
+                'question': original question,
+                'category': question type (timeline, availability, etc.),
+                'subject': what the question is about,
+                'requires_specific_answer': bool
+            }
+        """
+        # Take only the first sentence/question if multiple exist
+        first_question = question.split('?')[0] + '?' if '?' in question else question.split('.')[0]
+        question_lower = first_question.lower()
+        
+        # Determine question category
+        category = 'information'
+        for cat, keywords in self.question_topics.items():
+            if any(keyword in question_lower for keyword in keywords):
+                category = cat
+                break
+        
+        # Extract subject (rough heuristic)
+        subject = self._extract_question_subject(first_question)
+        
+        return {
+            'question': first_question,
+            'category': category,
+            'subject': subject,
+            'requires_specific_answer': category in ['timeline', 'availability', 'approval']
+        }
+    
+    def _extract_question_subject(self, question: str) -> str:
+        """Extract what the question is about"""
+        # Try to extract noun phrases or key topics
+        # Remove question words and punctuation
+        cleaned = re.sub(r'\b(can you|could you|would you|will you|do you|what|when|where|how|why|which|me|you|to me|them|it|the)\b', '', question.lower(), flags=re.IGNORECASE)
+        cleaned = re.sub(r'[?,.\n]', '', cleaned)
+        cleaned = cleaned.strip()
+        
+        # Get meaningful words (not too short, not stopwords)
+        stopwords = {'for', 'and', 'a', 'an', 'to', 'by', 'is', 'are', 'was', 'were', 'this', 'that', 'send', 'get', 'give', 'tell', 'show'}
+        words = [w for w in cleaned.split() if len(w) > 2 and w not in stopwords]
+        
+        # If we got good words, return first 2-3
+        if len(words) >= 2:
+            return ' '.join(words[:3])
+        
+        # Subject extraction failed, return empty to trigger fallback
+        return ''
+
+
+class ActionSpecifier:
+    """
+    Identifies the exact action requested from user
+    This enables specific commitments instead of "I'll get back to you"
+    """
+    
+    def __init__(self):
+        """Initialize action specifier"""
+        self.action_verbs = {
+            'send': ['send', 'email', 'share', 'forward', 'provide'],
+            'review': ['review', 'check', 'look at', 'examine', 'go through'],
+            'update': ['update', 'inform', 'let know', 'notify'],
+            'schedule': ['schedule', 'set up', 'arrange', 'book'],
+            'complete': ['complete', 'finish', 'submit', 'deliver'],
+            'approve': ['approve', 'sign off', 'authorize'],
+            'confirm': ['confirm', 'verify', 'validate']
+        }
+    
+    def specify_action(self, action_item: str) -> Dict[str, Any]:
+        """
+        Determine what specific action is being requested
+        
+        Returns:
+            {
+                'action_text': original action item,
+                'action_type': type of action (send, review, etc.),
+                'action_object': what to act on,
+                'is_concrete': bool (can we commit specifically?)
+            }
+        """
+        action_lower = action_item.lower()
+        
+        # Identify action type
+        action_type = 'general'
+        for atype, verbs in self.action_verbs.items():
+            if any(verb in action_lower for verb in verbs):
+                action_type = atype
+                break
+        
+        # Extract action object (what to send/review/etc.)
+        action_object = self._extract_action_object(action_item, action_type)
+        
+        return {
+            'action_text': action_item,
+            'action_type': action_type,
+            'action_object': action_object,
+            'is_concrete': action_type != 'general' and action_object != 'this'
+        }
+    
+    def _extract_action_object(self, action_item: str, action_type: str) -> str:
+        """Extract what object the action is about"""
+        # Look for nouns after action verbs
+        words = action_item.split()
+        
+        # Common objects to look for
+        objects = ['report', 'document', 'file', 'update', 'proposal', 'numbers', 'data', 'info', 'details']
+        
+        for obj in objects:
+            if obj in action_item.lower():
+                return obj
+        
+        # Fallback: return meaningful words
+        meaningful = [w for w in words if len(w) > 3 and w.lower() not in ['please', 'could', 'would', 'kindly']][:3]
+        return ' '.join(meaningful) if meaningful else 'this'
+
+
+class CommitmentGenerator:
+    """
+    Generates specific commitments based on email content
+    Replaces vague "I'll get back to you" with concrete actions
+    """
+    
+    def __init__(self):
+        """Initialize commitment generator"""
+        self.default_timelines = {
+            'urgent': 'today',
+            'high': 'by end of day',
+            'normal': 'soon'
+        }
+    
+    def generate_commitment(self, context: Dict[str, Any], action_spec: Optional[Dict] = None, 
+                          question_analysis: Optional[Dict] = None) -> str:
+        """
+        Generate specific commitment based on what's requested
+        
+        Args:
+            context: Email context with urgency, deadlines, etc.
+            action_spec: Specification from ActionSpecifier
+            question_analysis: Analysis from QuestionAnalyzer
+            
+        Returns:
+            Specific commitment string
+        """
+        urgency = context.get('urgency_level', 'normal')
+        deadlines = context.get('deadlines', [])
+        
+        # If there's a specific action requested
+        if action_spec and action_spec.get('is_concrete'):
+            action_type = action_spec['action_type']
+            action_object = action_spec['action_object']
+            
+            # Clean the action object - only use if it makes sense
+            if action_object and len(action_object) > 2 and len(action_object.split()) <= 5:
+                # Create specific commitment based on action type
+                if action_type == 'send':
+                    commitment = f"I'll send you {action_object}"
+                elif action_type == 'review':
+                    commitment = f"I'll review {action_object}"
+                elif action_type == 'update':
+                    commitment = f"I'll send you an update"
+                elif action_type == 'schedule':
+                    commitment = f"I'll set up {action_object}"
+                elif action_type == 'complete':
+                    commitment = f"I'll complete {action_object}"
+                else:
+                    commitment = f"I'll take care of that"
+            else:
+                # Action object is garbled, use generic but still action-specific
+                if action_type == 'send':
+                    commitment = "I'll send that over"
+                elif action_type == 'review':
+                    commitment = "I'll review that"
+                elif action_type == 'update':
+                    commitment = "I'll send you an update"
+                else:
+                    commitment = "I'll take care of that"
+        
+        # If there's a specific question
+        elif question_analysis and question_analysis.get('requires_specific_answer'):
+            category = question_analysis['category']
+            subject = question_analysis['subject']
+            
+            if category == 'availability':
+                commitment = "Let me check my calendar and send you some times"
+            elif category == 'timeline':
+                # Only use subject if clean
+                if subject and len(subject) > 2 and len(subject.split()) <= 4:
+                    commitment = f"I'll get you those details"
+                else:
+                    commitment = "I'll get you those details"
+            elif category == 'approval':
+                commitment = "Let me review this and confirm"
+            else:
+                commitment = "I'll get back to you on that"
+        
+        # Default commitment
+        else:
+            commitment = "I'll take a look at this"
+        
+        # Add timeline (be careful not to duplicate "by")
+        if deadlines:
+            deadline = deadlines[0]
+            # If deadline already starts with "by", don't add another "by"
+            if deadline.lower().startswith('by '):
+                commitment += f" {deadline}"
+            else:
+                commitment += f" by {deadline}"
+        else:
+            timeline = self.default_timelines.get(urgency, 'soon')
+            if timeline != 'soon':
+                commitment += f" {timeline}"
+            else:
+                commitment += " soon"
+        
+        return commitment
+
+
+class UserPatternApplier:
+    """
+    Applies learned user preferences from edit history
+    Makes replies sound more like the user's natural style
+    """
+    
+    def __init__(self, user_preferences: Optional[Dict] = None):
+        """Initialize with user preferences from learning tracker"""
+        self.user_prefs = user_preferences or {}
+    
+    def apply_user_patterns(self, reply: str, context: Dict[str, Any]) -> str:
+        """
+        Apply learned user patterns to reply
+        
+        Args:
+            reply: Generated reply text
+            context: Email context
+            
+        Returns:
+            Reply adjusted to match user's style
+        """
+        if not self.user_prefs:
+            return reply
+        
+        # NOW RE-ENABLED with clean data
+        # Only apply formality (safe transformation)
+        reply = self._apply_formality(reply)
+        
+        # Note: Closing replacement disabled as it's not needed with short phrases
+        # The short phrases don't contain full closings anyway
+        
+        return reply
+    
+    def _apply_preferred_closing(self, reply: str) -> str:
+        """Replace generic closing with user's preferred style"""
+        common_closings = {
+            'Thanks': ['Thanks', 'Thanks!', 'Thank you'],
+            'Best': ['Best', 'Best regards', 'Best,'],
+            'Regards': ['Regards', 'Best regards', 'Kind regards']
+        }
+        
+        # Check user's commonly added phrases for closings
+        added_phrases = self.user_prefs.get('phrase_preferences', {}).get('commonly_added_phrases', [])
+        
+        for phrase in added_phrases:
+            phrase_lower = phrase.lower()
+            # Look for closing patterns
+            if any(closing in phrase_lower for closing in ['thanks!', 'best regards', 'cheers', 'talk soon']):
+                # Found user's preferred closing in their edit history
+                closing = phrase.split('\n')[-1] if '\n' in phrase else phrase.split('.')[-1]
+                closing = closing.strip()
+                
+                # Replace generic closing in reply
+                for generic_closings in common_closings.values():
+                    for generic in generic_closings:
+                        if generic in reply:
+                            reply = reply.replace(generic, closing.capitalize())
+                            return reply
+        
+        return reply
+    
+    def _apply_formality(self, reply: str) -> str:
+        """Adjust formality based on user preference"""
+        formality = self.user_prefs.get('communication_style', {}).get('formality_level', 0.6)
+        
+        # If user prefers casual (formality < 0.5)
+        if formality < 0.5:
+            # Replace formal phrases with casual ones
+            reply = reply.replace('I will', "I'll")
+            reply = reply.replace('I would', "I'd")
+            reply = reply.replace('Thank you', 'Thanks')
+        
+        # If user prefers formal (formality > 0.7)
+        elif formality > 0.7:
+            # Replace casual with formal
+            reply = reply.replace("I'll", 'I will')
+            reply = reply.replace("I'd", 'I would')
+            reply = reply.replace('Thanks!', 'Thank you')
+        
+        return reply
+    
+    def _inject_common_phrases(self, reply: str, context: Dict[str, Any]) -> str:
+        """Inject user's commonly used phrases when contextually relevant"""
+        added_phrases = self.user_prefs.get('phrase_preferences', {}).get('commonly_added_phrases', [])
+        
+        # Look for phrases that match current context
+        if context.get('email_category') == 'meeting_request':
+            for phrase in added_phrases:
+                if 'available' in phrase.lower() or 'calendar' in phrase.lower():
+                    # User commonly mentions specific availability
+                    # Could inject learned availability patterns here
+                    pass
+        
+        return reply
+
+
+class ContentSpecificReplyBuilder:
+    """
+    Main builder that creates human-sounding replies by addressing actual email content
+    This replaces the generic template-based approach
+    """
+    
+    def __init__(self, user_preferences: Optional[Dict] = None):
+        """Initialize content-specific reply builder"""
+        self.question_analyzer = QuestionAnalyzer()
+        self.action_specifier = ActionSpecifier()
+        self.commitment_generator = CommitmentGenerator()
+        self.user_pattern_applier = UserPatternApplier(user_preferences)
+    
+    def build_reply(self, context: Dict[str, Any], tone: str = 'business', 
+                   relationship_context: Optional[Dict] = None,
+                   greeting_builder: Optional[Any] = None) -> str:
+        """
+        Build human-sounding reply addressing specific email content
+        
+        Args:
+            context: Extracted email context with questions, actions, etc.
+            tone: Communication tone (formal, business, casual)
+            relationship_context: Optional sender relationship context (Priority 2)
+            greeting_builder: Optional PersonalizedGreetingBuilder (Priority 2)
+            
+        Returns:
+            Natural-sounding reply that addresses email specifics
+        """
+        import random
+        
+        sender_name = context.get('sender_name', 'there')
+        questions = context.get('questions', [])
+        action_items = context.get('action_items', [])
+        deadlines = context.get('deadlines', [])
+        urgency = context.get('urgency_level', 'normal')
+        main_topic = context.get('main_topic', '')
+        
+        # Build reply parts
+        parts = []
+        
+        # 1. GREETING (contextual + personalized with Priority 2 enhancement)
+        if greeting_builder and relationship_context:
+            greeting = greeting_builder.build_greeting(sender_name, relationship_context)
+        else:
+            greeting = self._build_greeting(sender_name, tone, context)
+        parts.append(greeting)
+        
+        # 2. SPECIFIC ACKNOWLEDGMENT (not generic)
+        acknowledgment = self._build_specific_acknowledgment(context, questions, action_items, main_topic)
+        if acknowledgment:
+            parts.append(acknowledgment)
+        
+        # 3. SPECIFIC COMMITMENT (not "I'll get back to you")
+        commitment = self._build_specific_commitment(context, questions, action_items)
+        parts.append(commitment)
+        
+        # 4. CLOSING (learned from user)
+        closing = self._build_closing(tone, urgency)
+        parts.append(closing)
+        
+        # Combine parts naturally
+        reply = "\n\n".join(parts)
+        
+        # Apply user patterns
+        reply = self.user_pattern_applier.apply_user_patterns(reply, context)
+        
+        return reply
+    
+    def _build_greeting(self, sender_name: str, tone: str, context: Dict) -> str:
+        """Build contextual greeting"""
+        import random
+        
+        if tone == 'formal':
+            greetings = ["Dear", "Hello"]
+        elif tone == 'casual':
+            greetings = ["Hey", "Hi"]
+        else:  # business
+            greetings = ["Hi", "Hey", "Hello"]
+        
+        greeting = random.choice(greetings)
+        return f"{greeting} {sender_name},"
+    
+    def _build_specific_acknowledgment(self, context: Dict, questions: List[str], 
+                                      action_items: List[str], main_topic: str) -> str:
+        """Build acknowledgment that references actual content"""
+        import random
+        
+        # If there's a specific question
+        if questions:
+            question_analysis = self.question_analyzer.analyze_question(questions[0])
+            category = question_analysis['category']
+            subject = question_analysis['subject']
+            
+            if category == 'availability':
+                return random.choice([
+                    "Thanks for reaching out about scheduling!",
+                    "Got your message about meeting up.",
+                    "Thanks for checking on availability."
+                ])
+            elif category == 'timeline':
+                # Only use subject if it's clean and meaningful (at least 2 words)
+                if subject and len(subject) > 3 and len(subject.split()) >= 2:
+                    return random.choice([
+                        f"Thanks for your question about {subject}!",
+                        f"Good question about {subject}.",
+                        f"Got your question on {subject}."
+                    ])
+                else:
+                    return random.choice([
+                        "Thanks for your question!",
+                        "Good question!",
+                        "Got your message!"
+                    ])
+            elif category == 'status':
+                if subject and len(subject) > 3 and len(subject.split()) <= 4:
+                    return f"Thanks for checking in on {subject}."
+                else:
+                    return "Thanks for checking in!"
+            else:
+                return random.choice([
+                    "Great question!",
+                    "Good question!",
+                    "Thanks for asking about that."
+                ])
+        
+        # If there's a specific action requested
+        elif action_items:
+            action_spec = self.action_specifier.specify_action(action_items[0])
+            if action_spec['is_concrete']:
+                action_obj = action_spec['action_object']
+                # Only use if clean
+                if action_obj and len(action_obj) > 3 and len(action_obj.split()) <= 4:
+                    return random.choice([
+                        f"Got it - thanks for flagging {action_obj}.",
+                        f"Thanks for the heads up on {action_obj}.",
+                        f"Noted on {action_obj}."
+                    ])
+        
+        # If there's a clear topic
+        if main_topic and len(main_topic) > 10 and len(main_topic) < 50:
+            return random.choice([
+                f"Thanks for reaching out!",
+                "Got your message.",
+                "Thanks for sending this over."
+            ])
+        
+        # Generic but warm fallback
+        return random.choice([
+            "Thanks for reaching out!",
+            "Got your email.",
+            "Thanks for sending this over."
+        ])
+    
+    def _build_specific_commitment(self, context: Dict, questions: List[str], 
+                                   action_items: List[str]) -> str:
+        """Build specific commitment instead of generic response"""
+        
+        # Analyze question if present
+        question_analysis = None
+        if questions:
+            question_analysis = self.question_analyzer.analyze_question(questions[0])
+        
+        # Specify action if present
+        action_spec = None
+        if action_items:
+            action_spec = self.action_specifier.specify_action(action_items[0])
+        
+        # Generate specific commitment
+        commitment = self.commitment_generator.generate_commitment(
+            context, action_spec, question_analysis
+        )
+        
+        return commitment
+    
+    def _build_closing(self, tone: str, urgency: str) -> str:
+        """Build natural closing"""
+        import random
+        
+        if tone == 'formal':
+            closings = ["Best regards", "Regards", "Sincerely"]
+        elif tone == 'casual':
+            closings = ["Thanks!", "Cheers!", "Talk soon!"]
+        else:  # business
+            if urgency in ['urgent', 'high']:
+                closings = ["Thanks", "Best", "Talk soon"]
+            else:
+                closings = ["Thanks", "Best", "Thanks!"]
+        
+        return random.choice(closings)
+
+
+# =============================================================================
+# SENDER INTELLIGENCE & RELATIONSHIP CONTEXT (Priority 2 Enhancement)
+# =============================================================================
+
+class SenderHistoryAnalyzer:
+    """
+    Analyzes sender history to personalize replies based on past interactions
+    """
+    
+    def __init__(self, behavioral_patterns: Dict):
+        """
+        Initialize sender history analyzer
+        
+        Args:
+            behavioral_patterns: Dict from behavioral_patterns.json
+        """
+        self.behavioral_patterns = behavioral_patterns
+        print("[INFO] Sender History Analyzer initialized")
+    
+    def get_sender_profile(self, sender_email: str) -> Dict[str, Any]:
+        """
+        Build comprehensive sender profile from history
+        
+        Returns:
+            {
+                'interaction_count': int,
+                'preferred_tone': str (formal/business/casual),
+                'typical_priority': str (High/Medium/Low),
+                'relationship_level': str (new/regular/frequent),
+                'tone_consistency': float (0-1, how consistent their preferred tone is)
+            }
+        """
+        
+        profile = {
+            'interaction_count': 0,
+            'preferred_tone': 'business',  # default
+            'typical_priority': 'Medium',
+            'relationship_level': 'new',
+            'tone_consistency': 0.5
+        }
+        
+        # Get communication style data
+        comm_style = self.behavioral_patterns.get('communication_style', {})
+        sender_style = comm_style.get(sender_email, {})
+        
+        if sender_style:
+            formal = sender_style.get('formal_count', 0)
+            business = sender_style.get('business_count', 0)
+            casual = sender_style.get('casual_count', 0)
+            
+            total = formal + business + casual
+            profile['interaction_count'] = total
+            
+            # Determine preferred tone (highest count)
+            if total > 0:
+                max_count = max(formal, business, casual)
+                if formal == max_count:
+                    profile['preferred_tone'] = 'formal'
+                elif casual == max_count:
+                    profile['preferred_tone'] = 'casual'
+                else:
+                    profile['preferred_tone'] = 'business'
+                
+                # Calculate tone consistency
+                profile['tone_consistency'] = max_count / total
+            
+            # Determine relationship level
+            if total >= 20:
+                profile['relationship_level'] = 'frequent'
+            elif total >= 5:
+                profile['relationship_level'] = 'regular'
+            else:
+                profile['relationship_level'] = 'new'
+        
+        # Get priority patterns
+        priority_patterns = self.behavioral_patterns.get('priority_patterns', {})
+        sender_priorities = priority_patterns.get(sender_email, {})
+        
+        if sender_priorities:
+            high = sender_priorities.get('High', 0)
+            medium = sender_priorities.get('Medium', 0)
+            low = sender_priorities.get('Low', 0)
+            
+            total_priority = high + medium + low
+            if total_priority > 0:
+                max_priority = max(high, medium, low)
+                if high == max_priority:
+                    profile['typical_priority'] = 'High'
+                elif low == max_priority:
+                    profile['typical_priority'] = 'Low'
+                else:
+                    profile['typical_priority'] = 'Medium'
+        
+        return profile
+
+
+class RelationshipContextBuilder:
+    """
+    Builds relationship context to personalize greeting and overall tone
+    """
+    
+    def __init__(self, sender_analyzer: SenderHistoryAnalyzer):
+        """
+        Initialize relationship context builder
+        
+        Args:
+            sender_analyzer: SenderHistoryAnalyzer instance
+        """
+        self.sender_analyzer = sender_analyzer
+        print("[INFO] Relationship Context Builder initialized")
+    
+    def build_context(self, sender_email: str, sender_name: str, 
+                     current_urgency: str) -> Dict[str, Any]:
+        """
+        Build relationship context for personalization
+        
+        Returns:
+            {
+                'greeting_style': str (formal/friendly/casual),
+                'use_first_name': bool,
+                'reference_history': bool,
+                'relationship_acknowledgment': str (optional phrase to add),
+                'tone_override': str (if sender history strongly suggests different tone)
+            }
+        """
+        
+        profile = self.sender_analyzer.get_sender_profile(sender_email)
+        
+        context = {
+            'greeting_style': 'professional',
+            'use_first_name': True,
+            'reference_history': False,
+            'relationship_acknowledgment': '',
+            'tone_override': None
+        }
+        
+        # Determine greeting style based on relationship
+        if profile['relationship_level'] == 'frequent':
+            # Frequent contacts get warmer greetings
+            if profile['preferred_tone'] == 'casual':
+                context['greeting_style'] = 'casual'
+                context['reference_history'] = True
+                context['relationship_acknowledgment'] = self._get_frequent_acknowledgment()
+            elif profile['preferred_tone'] == 'business':
+                context['greeting_style'] = 'friendly'
+                context['reference_history'] = True
+            else:  # formal
+                context['greeting_style'] = 'professional'
+        
+        elif profile['relationship_level'] == 'regular':
+            # Regular contacts get friendly but professional
+            if profile['preferred_tone'] == 'casual':
+                context['greeting_style'] = 'friendly'
+            else:
+                context['greeting_style'] = 'professional'
+        
+        else:  # new
+            # New contacts get professional treatment
+            context['greeting_style'] = 'professional'
+            context['use_first_name'] = profile['preferred_tone'] != 'formal'
+        
+        # Strong tone consistency = override current tone detection
+        if profile['tone_consistency'] > 0.8 and profile['interaction_count'] >= 3:
+            context['tone_override'] = profile['preferred_tone']
+        
+        # High priority senders get priority treatment
+        if profile['typical_priority'] == 'High' and current_urgency != 'urgent':
+            context['relationship_acknowledgment'] = "I'll prioritize this for you."
+        
+        return context
+    
+    def _get_frequent_acknowledgment(self) -> str:
+        """Get acknowledgment phrase for frequent contacts"""
+        import random
+        phrases = [
+            "Great to hear from you again!",
+            "Thanks as always for reaching out!",
+            "Always happy to help!",
+            ""  # Sometimes no special acknowledgment
+        ]
+        return random.choice(phrases)
+
+
+class PersonalizedGreetingBuilder:
+    """
+    Builds personalized greetings based on sender relationship
+    """
+    
+    def __init__(self):
+        """Initialize personalized greeting builder"""
+        print("[INFO] Personalized Greeting Builder initialized")
+    
+    def build_greeting(self, sender_name: str, relationship_context: Dict) -> str:
+        """
+        Build personalized greeting
+        
+        Args:
+            sender_name: Name of sender
+            relationship_context: Context from RelationshipContextBuilder
+        
+        Returns:
+            Personalized greeting string
+        """
+        
+        greeting_style = relationship_context.get('greeting_style', 'professional')
+        use_first_name = relationship_context.get('use_first_name', True)
+        
+        # Extract first name if needed
+        name_to_use = sender_name
+        if use_first_name and ' ' in sender_name:
+            name_to_use = sender_name.split()[0]
+        
+        # Build greeting based on style
+        if greeting_style == 'casual':
+            greetings = [f"Hey {name_to_use}!", f"Hi {name_to_use}!"]
+        elif greeting_style == 'friendly':
+            greetings = [f"Hi {name_to_use}", f"Hello {name_to_use}"]
+        else:  # professional
+            greetings = [f"Hi {name_to_use}", f"Hello {name_to_use}"]
+        
+        import random
+        greeting = random.choice(greetings)
+        
+        # Add relationship acknowledgment if present
+        rel_ack = relationship_context.get('relationship_acknowledgment', '')
+        if rel_ack:
+            greeting = f"{greeting}\n\n{rel_ack}"
+        
+        return greeting
+
+
+class ToneAdapter:
+    """
+    Adapts detected tone based on sender history and relationship
+    """
+    
+    def __init__(self, sender_analyzer: SenderHistoryAnalyzer):
+        """
+        Initialize tone adapter
+        
+        Args:
+            sender_analyzer: SenderHistoryAnalyzer instance
+        """
+        self.sender_analyzer = sender_analyzer
+        print("[INFO] Tone Adapter initialized")
+    
+    def adapt_tone(self, detected_tone: str, sender_email: str, 
+                   sender_name: str, urgency: str) -> str:
+        """
+        Adapt tone based on sender history
+        
+        If sender consistently prefers a different tone (80%+ consistency, 3+ interactions),
+        override the detected tone with their preference.
+        
+        Args:
+            detected_tone: Tone detected from current email
+            sender_email: Sender's email address
+            sender_name: Sender's name
+            urgency: Email urgency level
+        
+        Returns:
+            Adapted tone (may be same as detected or overridden)
+        """
+        
+        profile = self.sender_analyzer.get_sender_profile(sender_email)
+        
+        # Strong preference override
+        if profile['tone_consistency'] > 0.8 and profile['interaction_count'] >= 3:
+            adapted_tone = profile['preferred_tone']
+            if adapted_tone != detected_tone:
+                print(f"[INFO] Tone adapted: {detected_tone} → {adapted_tone} (sender preference, {profile['interaction_count']} interactions)")
+            return adapted_tone
+        
+        # Moderate preference influence (blend)
+        if profile['tone_consistency'] > 0.6 and profile['interaction_count'] >= 5:
+            preferred = profile['preferred_tone']
+            
+            # If detected is formal but sender prefers casual, meet in middle (business)
+            if detected_tone == 'formal' and preferred == 'casual':
+                print(f"[INFO] Tone moderated: formal → business (sender preference)")
+                return 'business'
+            
+            # If detected is casual but sender prefers formal, meet in middle (business)
+            if detected_tone == 'casual' and preferred == 'formal':
+                print(f"[INFO] Tone moderated: casual → business (sender preference)")
+                return 'business'
+        
+        # No override needed
+        return detected_tone
+
+
+# =============================================================================
+# ACTIVE LEARNING APPLICATION (Priority 4 Enhancement)
+# =============================================================================
+
+class LearnedPhraseInjector:
+    """
+    Actively injects commonly added phrases from learning history
+    into generated replies to match user's natural style
+    """
+    
+    def __init__(self, user_preferences: Optional[Dict] = None):
+        """
+        Initialize learned phrase injector
+        
+        Args:
+            user_preferences: User preferences from learning tracker
+        """
+        self.user_prefs = user_preferences or {}
+        
+        # Extract learned phrases
+        phrase_prefs = self.user_prefs.get('phrase_preferences', {})
+        self.commonly_added = phrase_prefs.get('commonly_added_phrases', [])
+        self.avoided = phrase_prefs.get('avoided_phrases', [])
+        
+        # Filter to ensure only SHORT phrases (safety check)
+        self.commonly_added = [p for p in self.commonly_added if len(p) < 60]
+        
+        print(f"[INFO] Learned Phrase Injector initialized ({len(self.commonly_added)} short phrases)")
+    
+    def inject_learned_phrases(self, reply: str, context: Dict[str, Any]) -> str:
+        """
+        Inject learned phrases into reply where appropriate
+        
+        Args:
+            reply: Generated reply
+            context: Email context (questions, actions, etc.)
+            
+        Returns:
+            Reply enhanced with learned phrases
+        """
+        
+        # NOW RE-ENABLED with clean SHORT phrase data
+        
+        # STRATEGY 1: Add enthusiasm markers if user consistently adds them
+        if context.get('questions') and self._user_adds_enthusiasm():
+            reply = self._add_enthusiasm(reply, context)
+        
+        # STRATEGY 2: Inject specific timeline phrases user prefers
+        reply = self._inject_timeline_phrases(reply)
+        
+        return reply
+    
+    def _enhance_greeting(self, reply: str) -> str:
+        """Replace generic greeting with learned one"""
+        
+        # Find learned greetings
+        learned_greetings = []
+        for phrase in self.commonly_added:
+            phrase_lower = phrase.lower()
+            if any(greeting in phrase_lower for greeting in ['thanks for reaching out', 'thanks for asking', 'good question', 'great question']):
+                learned_greetings.append(phrase)
+        
+        if not learned_greetings:
+            return reply
+        
+        # Check if reply has generic greeting patterns
+        generic_patterns = [
+            'thanks for your email',
+            'thank you for your email',
+            'thanks for your message'
+        ]
+        
+        reply_lower = reply.lower()
+        for generic in generic_patterns:
+            if generic in reply_lower:
+                # User prefers different greeting
+                import random
+                learned = random.choice(learned_greetings)
+                
+                # Extract just the greeting part (first sentence)
+                learned_greeting = learned.split('.')[0] if '.' in learned else learned
+                learned_greeting = learned_greeting.split('\n')[0] if '\n' in learned_greeting else learned_greeting
+                
+                # Replace generic with learned
+                reply = reply.replace(
+                    reply[reply.lower().find(generic):reply.lower().find(generic) + len(generic)],
+                    learned_greeting
+                )
+                break
+        
+        return reply
+    
+    def _user_adds_enthusiasm(self) -> bool:
+        """Check if user consistently adds enthusiasm markers"""
+        
+        enthusiasm_count = sum(
+            1 for phrase in self.commonly_added
+            if '!' in phrase or 'great' in phrase.lower() or 'happy to' in phrase.lower()
+        )
+        
+        # If >30% of learned phrases have enthusiasm
+        if self.commonly_added and enthusiasm_count / len(self.commonly_added) > 0.3:
+            return True
+        
+        return False
+    
+    def _add_enthusiasm(self, reply: str, context: Dict[str, Any]) -> str:
+        """Add enthusiasm if missing but user typically adds it"""
+        
+        # If reply doesn't have exclamation marks but user likes them
+        if '!' not in reply:
+            # Find learned enthusiastic phrases
+            enthusiastic_phrases = [
+                phrase for phrase in self.commonly_added
+                if 'great question' in phrase.lower() or 'good question' in phrase.lower()
+            ]
+            
+            if enthusiastic_phrases and context.get('questions'):
+                # Add at beginning after greeting
+                lines = reply.split('\n\n')
+                if len(lines) > 1:
+                    # Add after first line (greeting)
+                    lines[1] = "Great question! " + lines[1]
+                    reply = '\n\n'.join(lines)
+        
+        return reply
+    
+    def _inject_timeline_phrases(self, reply: str) -> str:
+        """Inject specific timeline phrases user prefers"""
+        
+        # First check if reply already has a specific timeline
+        has_specific_timeline = any(phrase in reply.lower() for phrase in [
+            'by eod', 'by tomorrow', 'by end of day', 'this afternoon', 
+            'this morning', 'by monday', 'by friday', 'by next week'
+        ])
+        
+        # If already has specific timeline, don't inject another
+        if has_specific_timeline:
+            return reply
+        
+        # Find learned timeline phrases
+        timeline_phrases = []
+        for phrase in self.commonly_added:
+            phrase_lower = phrase.lower()
+            if any(time in phrase_lower for time in ['by eod', 'by tomorrow', 'by end of day', 'this afternoon', 'this morning']):
+                timeline_phrases.append(phrase)
+        
+        if not timeline_phrases:
+            return reply
+        
+        # Check if reply has vague timeline
+        vague_patterns = ['soon', 'shortly', 'later']
+        
+        reply_lower = reply.lower()
+        for vague in vague_patterns:
+            if vague in reply_lower:
+                # Find a relevant learned timeline phrase
+                import random
+                learned_timeline = random.choice(timeline_phrases)
+                
+                # Extract the timeline part
+                # e.g., "I'll send you an update by EOD tomorrow" -> "by EOD tomorrow"
+                timeline_part = learned_timeline
+                if 'by ' in learned_timeline.lower():
+                    timeline_start = learned_timeline.lower().find('by ')
+                    timeline_part = learned_timeline[timeline_start:].split('.')[0].strip()
+                
+                # Replace vague with specific (only first occurrence)
+                reply = reply.replace(vague, timeline_part, 1)
+                break
+        
+        return reply
+    
+    def _enhance_acknowledgment(self, reply: str, context: Dict[str, Any]) -> str:
+        """Enhance generic acknowledgment with user's style"""
+        
+        # Find learned acknowledgment patterns
+        acknowledgments = [
+            phrase for phrase in self.commonly_added
+            if any(ack in phrase.lower() for ack in ['thanks for', 'happy to', 'i\'d be happy', 'looking forward'])
+        ]
+        
+        if not acknowledgments:
+            return reply
+        
+        # If reply is too generic, enhance it
+        generic_acks = ['i see your question', 'thanks for your email about']
+        
+        reply_lower = reply.lower()
+        for generic in generic_acks:
+            if generic in reply_lower:
+                # Replace with more natural learned phrase
+                import random
+                learned_ack = random.choice(acknowledgments)
+                
+                # Extract acknowledgment part
+                ack_sentence = learned_ack.split('.')[0] if '.' in learned_ack else learned_ack
+                ack_sentence = ack_sentence.split('\n')[0] if '\n' in ack_sentence else ack_sentence
+                
+                # Replace
+                start_idx = reply_lower.find(generic)
+                end_idx = start_idx + len(generic)
+                reply = reply[:start_idx] + ack_sentence.strip() + reply[end_idx:]
+                break
+        
+        return reply
+
+
+class CategorySpecificAdapter:
+    """
+    Adapts replies based on email category using learned patterns
+    Different categories (meeting_request, question, etc.) get different treatment
+    """
+    
+    def __init__(self, learning_stats: Optional[Dict] = None):
+        """
+        Initialize category-specific adapter
+        
+        Args:
+            learning_stats: Learning statistics with per-category performance
+        """
+        self.learning_stats = learning_stats or {}
+        self.category_performance = self.learning_stats.get('method_performance', {})
+        
+        print("[INFO] Category-Specific Adapter initialized")
+    
+    def adapt_for_category(self, reply: str, category: str, confidence: float) -> Tuple[str, float]:
+        """
+        Adapt reply based on category-specific learning
+        
+        Args:
+            reply: Generated reply
+            category: Email category (meeting_request, question, etc.)
+            confidence: Current confidence score
+            
+        Returns:
+            Tuple of (adapted_reply, adjusted_confidence)
+        """
+        
+        # Adjust confidence based on category performance
+        if category in self.category_performance:
+            cat_performance = self.category_performance[category]
+            acceptance_rate = float(cat_performance.get('acceptance_rate', '50%').rstrip('%')) / 100.0
+            
+            # If this category has low acceptance, reduce confidence
+            if acceptance_rate < 0.5:
+                confidence *= 0.9
+                print(f"[INFO] Category '{category}' has {acceptance_rate*100:.0f}% acceptance - confidence reduced")
+        
+        # Category-specific enhancements
+        if category == 'meeting_request':
+            reply = self._enhance_meeting_request(reply)
+        elif category == 'question':
+            reply = self._enhance_question_response(reply)
+        
+        return reply, confidence
+    
+    def _enhance_meeting_request(self, reply: str) -> str:
+        """Add meeting-specific enhancements"""
+        
+        # Ensure meeting requests mention availability/scheduling
+        if 'available' not in reply.lower() and 'schedule' not in reply.lower():
+            # Add scheduling mention
+            if 'i\'ll' in reply.lower() and 'get back' in reply.lower():
+                reply = reply.replace('get back to you', 'get back to you with my availability')
+        
+        return reply
+    
+    def _enhance_question_response(self, reply: str) -> str:
+        """Add question-specific enhancements"""
+        
+        # Ensure questions get enthusiastic response
+        if '!' not in reply and 'question' not in reply.lower():
+            # Find first line after greeting
+            lines = reply.split('\n\n')
+            if len(lines) > 1 and 'thanks' in lines[1].lower():
+                if not any(enthusiasm in lines[1].lower() for enthusiasm in ['great', 'good', '!']):
+                    lines[1] = lines[1].replace('Thanks', 'Thanks!')
+                    reply = '\n\n'.join(lines)
+        
+        return reply
 
 
 # =============================================================================
@@ -1366,16 +2605,8 @@ class SmartReplyGenerator:
         # Initialize components
         self.context_extractor = EmailContextExtractor()
         self.bart_generator = BARTAcknowledgmentGenerator()
-        self.confidence_scorer = ConfidenceScorer()
         
-        # Initialize safety components (Phase 2)
-        self.sensitive_detector = SensitiveTopicDetector()
-        self.edge_case_handler = EdgeCaseHandler()
-        
-        # Initialize reply necessity analyzer (NEW)
-        self.reply_necessity_analyzer = ReplyNecessityAnalyzer()
-        
-        # Initialize learning system (Phase 3)
+        # Initialize learning system (Phase 3) - MOVED UP for Priority 3
         if self.config.track_user_edits:
             try:
                 from reply_learning_tracker import ReplyLearningTracker
@@ -1386,6 +2617,36 @@ class SmartReplyGenerator:
                 self.learning_tracker = None
         else:
             self.learning_tracker = None
+        
+        # Initialize Enhanced Confidence Scorer with learning stats (Priority 3)
+        learning_stats = self._load_learning_stats()
+        self.confidence_scorer = ConfidenceScorer(learning_stats)
+        print("[INFO] Enhanced confidence scorer initialized")
+        
+        # Initialize safety components (Phase 2)
+        self.sensitive_detector = SensitiveTopicDetector()
+        self.edge_case_handler = EdgeCaseHandler()
+        
+        # Initialize reply necessity analyzer (NEW)
+        self.reply_necessity_analyzer = ReplyNecessityAnalyzer()
+        
+        # Initialize Content-Specific Reply Builder (Priority 1 Enhancement)
+        user_prefs = self.learning_tracker.user_preferences if self.learning_tracker else None
+        self.content_reply_builder = ContentSpecificReplyBuilder(user_prefs)
+        print("[INFO] Content-specific reply builder initialized")
+        
+        # Initialize Sender Intelligence System (Priority 2 Enhancement)
+        behavioral_data = self._load_behavioral_patterns()
+        self.sender_analyzer = SenderHistoryAnalyzer(behavioral_data)
+        self.relationship_builder = RelationshipContextBuilder(self.sender_analyzer)
+        self.greeting_builder = PersonalizedGreetingBuilder()
+        self.tone_adapter = ToneAdapter(self.sender_analyzer)
+        print("[INFO] Sender intelligence system initialized")
+        
+        # Initialize Active Learning Application (Priority 4 Enhancement)
+        self.phrase_injector = LearnedPhraseInjector(user_prefs)
+        self.category_adapter = CategorySpecificAdapter(learning_stats)
+        print("[INFO] Active learning application initialized")
         
         # Load templates for fallback/combination
         self._initialize_templates()
@@ -1458,6 +2719,40 @@ class SmartReplyGenerator:
                 'casual': "Thanks for reaching out. I understand this is sensitive. Let me review this carefully and I'll get back to you soon."
             }
         }
+    
+    def _load_behavioral_patterns(self) -> Dict:
+        """Load behavioral patterns from JSON file"""
+        import json
+        import os
+        
+        try:
+            patterns_path = os.path.join('ai_data', 'behavioral_patterns.json')
+            if os.path.exists(patterns_path):
+                with open(patterns_path, 'r') as f:
+                    return json.load(f)
+            else:
+                print("[WARNING] behavioral_patterns.json not found, using empty patterns")
+                return {'communication_style': {}, 'priority_patterns': {}}
+        except Exception as e:
+            print(f"[WARNING] Error loading behavioral patterns: {e}")
+            return {'communication_style': {}, 'priority_patterns': {}}
+    
+    def _load_learning_stats(self) -> Dict:
+        """Load learning statistics for confidence calibration (Priority 3)"""
+        import json
+        import os
+        
+        try:
+            stats_path = os.path.join('ai_data', 'learning_stats.json')
+            if os.path.exists(stats_path):
+                with open(stats_path, 'r') as f:
+                    return json.load(f)
+            else:
+                print("[WARNING] learning_stats.json not found, using defaults")
+                return {'overall_acceptance_rate': '100%'}
+        except Exception as e:
+            print(f"[WARNING] Error loading learning stats: {e}")
+            return {'overall_acceptance_rate': '100%'}
     
     def generate_smart_reply(self, email_data: Dict[str, Any], 
                            detected_tone: str = 'business') -> Dict[str, Any]:
@@ -1563,22 +2858,67 @@ class SmartReplyGenerator:
             
             # Context already extracted in Step 0, continue to Step 4
             
-            # Step 4: Generate acknowledgment
-            acknowledgment = self.bart_generator.generate_acknowledgment(context, detected_tone)
+            # PRIORITY 2 ENHANCEMENT: Apply Sender Intelligence
+            sender_email = email_data.get('sender', email_data.get('sender_email', ''))
+            sender_name = email_data.get('sender_name', 'there')
             
-            # Step 3: Compose full reply
-            reply = self._compose_reply(
-                sender_name=context['sender_name'],
-                acknowledgment=acknowledgment,
-                context=context,
-                tone=detected_tone
+            # Get sender profile and relationship context
+            sender_profile = self.sender_analyzer.get_sender_profile(sender_email)
+            relationship_context = self.relationship_builder.build_context(
+                sender_email, sender_name, context.get('urgency_level', 'normal')
+            )
+            
+            # Adapt tone based on sender history (Priority 2)
+            original_tone = detected_tone
+            detected_tone = self.tone_adapter.adapt_tone(
+                detected_tone, sender_email, sender_name, context.get('urgency_level', 'normal')
+            )
+            
+            if original_tone != detected_tone:
+                result['metadata']['tone_adapted'] = {
+                    'original': original_tone,
+                    'adapted': detected_tone,
+                    'reason': f"Sender preference ({sender_profile['interaction_count']} interactions)"
+                }
+            
+            # Add sender profile to metadata for transparency
+            result['metadata']['sender_profile'] = {
+                'interactions': sender_profile['interaction_count'],
+                'relationship': sender_profile['relationship_level'],
+                'preferred_tone': sender_profile['preferred_tone']
+            }
+            
+            # Step 4: Generate CONTENT-SPECIFIC reply (Priority 1 Enhancement)
+            print("[INFO] Using Content-Specific Reply Builder...")
+            reply = self.content_reply_builder.build_reply(
+                context, 
+                detected_tone,
+                relationship_context=relationship_context,  # Priority 2
+                greeting_builder=self.greeting_builder      # Priority 2
+            )
+            
+            # PRIORITY 4 ENHANCEMENT: Apply Active Learning
+            print("[INFO] Applying learned patterns from edit history...")
+            
+            # Step 4a: Inject learned phrases (Priority 4)
+            reply = self.phrase_injector.inject_learned_phrases(reply, context)
+            
+            # Step 4b: Apply category-specific adaptations (Priority 4)
+            email_category = context.get('email_category', 'general')
+            reply, _ = self.category_adapter.adapt_for_category(
+                reply, email_category, confidence=0.5  # Temp confidence for category check
             )
             
             result['reply_text'] = reply
-            result['generation_method'] = 'ai_enhanced'
+            result['generation_method'] = 'content_specific_learned'  # Updated to show Priority 4
             
-            # Step 4: Calculate confidence
+            # Step 5: Calculate confidence (Priority 3 Enhanced)
             confidence = self.confidence_scorer.calculate_confidence(context, reply)
+            
+            # PRIORITY 4: Apply category-specific confidence adjustment
+            _, confidence = self.category_adapter.adapt_for_category(
+                reply, email_category, confidence
+            )
             
             # PHASE 3: Apply learning-based confidence adjustment
             if self.learning_tracker and self.config.adapt_to_preferences:

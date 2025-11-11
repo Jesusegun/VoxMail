@@ -256,15 +256,57 @@ class ReplyLearningTracker:
         except:
             changes['tone_shift'] = 'unknown'
         
-        # Find added phrases (simple approach)
-        orig_sentences = set(original.lower().split('.'))
-        edit_sentences = set(edited.lower().split('.'))
+        # Find added phrases (extract SHORT reusable phrases only)
+        # Split by sentences and newlines
+        orig_parts = set()
+        edit_parts = set()
         
-        added = edit_sentences - orig_sentences
-        removed = orig_sentences - edit_sentences
+        for part in original.replace('\n\n', '|').replace('\n', ' ').split('|'):
+            for sentence in part.split('.'):
+                sentence = sentence.strip()
+                if 5 < len(sentence) < 100:  # Only sentences of reasonable length
+                    orig_parts.add(sentence.lower())
         
-        changes['added_phrases'] = [s.strip() for s in added if len(s.strip()) > 10][:5]
-        changes['removed_phrases'] = [s.strip() for s in removed if len(s.strip()) > 10][:5]
+        for part in edited.replace('\n\n', '|').replace('\n', ' ').split('|'):
+            for sentence in part.split('.'):
+                sentence = sentence.strip()
+                if 5 < len(sentence) < 100:  # Only sentences of reasonable length
+                    edit_parts.add(sentence.lower())
+        
+        added = edit_parts - orig_parts
+        removed = orig_parts - edit_parts
+        
+        # Filter to keep only SHORT, reusable phrases (not full paragraphs)
+        def is_reusable_phrase(phrase: str) -> bool:
+            """Check if phrase is a short, reusable pattern"""
+            phrase = phrase.strip()
+            
+            # Must be short (< 50 chars) and not empty
+            if len(phrase) < 5 or len(phrase) > 50:
+                return False
+            
+            # Should have 2-8 words
+            word_count = len(phrase.split())
+            if word_count < 2 or word_count > 8:
+                return False
+            
+            # Look for common reusable patterns
+            reusable_patterns = [
+                'thanks', 'thank you', 'appreciate', 'happy to', 
+                'let me know', 'looking forward', 'best regards', 'cheers',
+                'i\'ll', 'by eod', 'by tomorrow', 'by end of', 
+                'great question', 'good question', 'got it',
+                'checking in', 'following up', 'touch base'
+            ]
+            
+            phrase_lower = phrase.lower()
+            has_reusable_pattern = any(pattern in phrase_lower for pattern in reusable_patterns)
+            
+            return has_reusable_pattern
+        
+        # Keep only reusable phrases
+        changes['added_phrases'] = [s.strip() for s in added if is_reusable_phrase(s)][:5]
+        changes['removed_phrases'] = [s.strip() for s in removed if is_reusable_phrase(s)][:5]
         
         # Detect structure changes
         if '\n\n' in edited and '\n\n' not in original:
@@ -303,12 +345,25 @@ class ReplyLearningTracker:
             # Moving average
             prefs['structural_preferences']['avg_reply_length'] = int(current_avg * 0.9 + new_length * 0.1)
         
-        # Track phrase preferences
+        # Track phrase preferences (SHORT reusable phrases only)
         if changes['added_phrases']:
+            # Add new phrases
             prefs['phrase_preferences']['commonly_added_phrases'].extend(changes['added_phrases'])
-            # Keep only recent 20
+            
+            # Deduplicate (keep unique phrases only)
+            unique_phrases = []
+            seen = set()
+            for phrase in prefs['phrase_preferences']['commonly_added_phrases']:
+                phrase_lower = phrase.lower().strip()
+                if phrase_lower not in seen and len(phrase) > 5:
+                    unique_phrases.append(phrase)
+                    seen.add(phrase_lower)
+            
+            prefs['phrase_preferences']['commonly_added_phrases'] = unique_phrases
+            
+            # Keep only recent 15 (reduced from 20)
             prefs['phrase_preferences']['commonly_added_phrases'] = \
-                prefs['phrase_preferences']['commonly_added_phrases'][-20:]
+                prefs['phrase_preferences']['commonly_added_phrases'][-15:]
         
         # Update metadata
         prefs['learning_metadata']['total_edits_tracked'] += 1
